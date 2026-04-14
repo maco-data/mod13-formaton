@@ -1,0 +1,167 @@
+name: Formaton CI/CD
+
+on:
+  push:
+    branches: [main, dev]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: [main, dev]
+
+env:
+  AWS_REGION: eu-west-1
+  NODE_VERSION: "20"
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  test-and-build:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install all dependencies
+        run: npm run install:all
+
+      - name: Lint backend
+        run: npm --workspace=backend run lint || true
+
+      - name: Test backend
+        run: npm --workspace=backend run test:coverage
+
+      - name: Build backend
+        run: npm --workspace=backend run build
+
+      - name: Build frontend
+        run: npm --workspace=frontend run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL_DEV }}
+          VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID_DEV }}
+          VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID_DEV }}
+          VITE_AWS_REGION: ${{ env.AWS_REGION }}
+          VITE_ENV: dev
+
+      - name: CDK Synth (validate IaC)
+        working-directory: infra
+        run: npx cdk synth --context env=dev --quiet
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+
+      - name: Upload frontend dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-dev:
+    name: Deploy → Dev
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/main'
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm run install:all
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_DEV }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_DEV }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy CDK stacks (dev)
+        working-directory: infra
+        run: npx cdk deploy --all --context env=dev --require-approval never --outputs-file ../cdk-outputs-dev.json
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+
+      - name: Download frontend dist
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+
+      - name: Deploy frontend to S3 + invalidate CloudFront
+        run: |
+          BUCKET=$(jq -r '."Formaton-Front-dev".SiteBucketName' cdk-outputs-dev.json)
+          DIST_ID=$(jq -r '."Formaton-Front-dev".DistributionId' cdk-outputs-dev.json)
+          aws s3 sync frontend/dist/ s3://$BUCKET --delete
+          aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
+
+      - name: Smoke test
+        run: |
+          API_URL=$(jq -r '."Formaton-Api-dev".ApiUrl' cdk-outputs-dev.json)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}workshops?limit=1")
+          echo "GET /workshops → HTTP $STATUS"
+          [ "$STATUS" = "200" ] || exit 1
+
+  # ──────────────────────────────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy → Prod
+    needs: test-and-build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment: prod          # requiere aprobación manual en GitHub Environments
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm run install:all
+
+      - name: Configure AWS credentials (prod)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build frontend (prod)
+        run: npm --workspace=frontend run build
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL_PROD }}
+          VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID_PROD }}
+          VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID_PROD }}
+          VITE_AWS_REGION: ${{ env.AWS_REGION }}
+          VITE_ENV: prod
+
+      - name: Deploy CDK stacks (prod)
+        working-directory: infra
+        run: npx cdk deploy --all --context env=prod --require-approval broadening --outputs-file ../cdk-outputs-prod.json
+        env:
+          CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
+          CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+
+      - name: Deploy frontend to S3 + invalidate CloudFront (prod)
+        run: |
+          BUCKET=$(jq -r '."Formaton-Front-prod".SiteBucketName' cdk-outputs-prod.json)
+          DIST_ID=$(jq -r '."Formaton-Front-prod".DistributionId' cdk-outputs-prod.json)
+          aws s3 sync frontend/dist/ s3://$BUCKET --delete
+          aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
+
+      - name: Smoke test prod
+        run: |
+          API_URL=$(jq -r '."Formaton-Api-prod".ApiUrl' cdk-outputs-prod.json)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}workshops?limit=1")
+          echo "GET /workshops → HTTP $STATUS"
+          [ "$STATUS" = "200" ] || exit 1

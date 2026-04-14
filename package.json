@@ -1,0 +1,14 @@
+{
+  "name": "formaton",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["infra", "backend", "frontend"],
+  "scripts": {
+    "install:all": "npm install && npm --workspace=infra install && npm --workspace=backend install && npm --workspace=frontend install",
+    "deploy:dev": "npm --workspace=backend run build && npm --workspace=infra run deploy:dev",
+    "deploy:prod": "npm --workspace=backend run build && npm --workspace=infra run deploy:prod",
+    "build:backend": "npm --workspace=backend run build",
+    "build:frontend": "npm --workspace=frontend run build",
+    "test": "npm --workspace=backend run test"
+  }
+}

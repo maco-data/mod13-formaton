@@ -1,0 +1,78 @@
+.overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(15,10,50,0.5);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.15s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: white;
+  border-radius: var(--radius-lg);
+  width: 480px; max-width: 96vw;
+  max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+  animation: slideUp 0.2s ease;
+}
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 24px 24px 16px;
+  border-bottom: 1px solid var(--border-light);
+}
+.header h2 { font-size: 16px; font-weight: 700; }
+.close {
+  width: 28px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border); background: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; color: var(--text-secondary);
+}
+.close:hover { background: var(--bg); }
+
+.body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+
+.group { display: flex; flex-direction: column; gap: 5px; }
+.group label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.group input,
+.group select,
+.group textarea {
+  padding: 9px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font-size: 13px;
+  color: var(--text-primary); outline: none; transition: border 0.15s;
+  background: white;
+}
+.group input:focus,
+.group select:focus,
+.group textarea:focus { border-color: var(--primary); }
+.group textarea { resize: vertical; }
+
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.radios { display: flex; flex-direction: column; gap: 6px; }
+.radio {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-primary); cursor: pointer;
+}
+
+.actions {
+  display: flex; gap: 10px; justify-content: flex-end;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-light);
+}
+.btnCancel {
+  padding: 8px 18px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: white;
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+}
+.btnCancel:hover { border-color: var(--primary); color: var(--primary); }
+.btnSave {
+  padding: 8px 20px; border-radius: var(--radius-sm);
+  border: none; background: var(--primary);
+  font-size: 13px; font-weight: 600; color: white;
+}
+.btnSave:hover { background: var(--primary-dark); }
