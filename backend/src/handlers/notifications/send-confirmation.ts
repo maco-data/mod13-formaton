@@ -9,6 +9,12 @@ const ses = new SESClient({});
 interface StudentRegisteredPayload {
   registration: { userId: string; workshopId: string; registeredAt: string };
   workshop: Workshop;
+  user?: {
+    id: string;
+    email: string;
+    givenName: string;
+    familyName: string;
+  };
 }
 
 /**
@@ -16,10 +22,17 @@ interface StudentRegisteredPayload {
  * Envía email de confirmación de inscripción al participante.
  */
 export const handler = async (event: EventBridgeEvent<'student.registered', StudentRegisteredPayload>) => {
-  const { registration, workshop } = event.detail;
+  const { registration, workshop, user: userSnapshot } = event.detail;
 
   const user = await getItem<User>(`USER#${registration.userId}`, 'META');
-  if (!user) {
+  const recipient = user ?? (userSnapshot ? {
+    id: userSnapshot.id,
+    email: userSnapshot.email,
+    givenName: userSnapshot.givenName,
+    familyName: userSnapshot.familyName,
+  } : null);
+
+  if (!recipient) {
     console.warn(`[SendConfirmation] Usuario ${registration.userId} no encontrado`);
     return;
   }
@@ -30,13 +43,13 @@ export const handler = async (event: EventBridgeEvent<'student.registered', Stud
 
   await ses.send(new SendEmailCommand({
     Source: process.env.SES_FROM ?? 'formaton@tuempresa.es',
-    Destination: { ToAddresses: [user.email] },
+    Destination: { ToAddresses: [recipient.email] },
     Message: {
       Subject: { Data: `✅ Inscripción confirmada: ${workshop.name}` },
       Body: {
         Html: {
           Data: `
-            <h2>Hola ${user.givenName},</h2>
+            <h2>Hola ${recipient.givenName},</h2>
             <p>Tu inscripción a <strong>${workshop.name}</strong> ha sido confirmada.</p>
             <ul>
               <li><strong>Fecha:</strong> ${startDate}</li>
@@ -52,5 +65,5 @@ export const handler = async (event: EventBridgeEvent<'student.registered', Stud
     },
   }));
 
-  console.log(`[SendConfirmation] Email enviado a ${user.email} para taller ${workshop.id}`);
+  console.log(`[SendConfirmation] Email enviado a ${recipient.email} para taller ${workshop.id}`);
 };

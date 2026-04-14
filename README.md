@@ -2,6 +2,24 @@
 
 Sistema LMS corporativo serverless construido sobre AWS con CDK (TypeScript).
 
+## Estado actual
+
+- Entorno `dev` desplegado end-to-end en AWS
+- Frontend publicado en CloudFront
+- API Gateway + Lambda conectados a DynamoDB
+- Cognito operativo con roles `admin`, `manager` y `student`
+- EventBridge activo para eventos de negocio
+- Alarmas y dashboard en CloudWatch
+- CI/CD básico con GitHub Actions
+
+## Demo dev
+
+- Frontend: `https://d3dvjbhouf9kz8.cloudfront.net`
+- API: `https://lvkm9fye6g.execute-api.eu-west-1.amazonaws.com/dev/`
+- Admin demo: `admin@formaton.demo`
+- Student demo: `student@formaton.demo`
+- Password demo: `Formaton2026!`
+
 ## Estructura del proyecto
 
 ```
@@ -47,10 +65,10 @@ npm run deploy:prod
 
 ## Variables de entorno
 
-Ver `frontend/.env.example` y `infra/config/environments.ts`.
+Ver `frontend/.env.example`, `frontend/.env.local` y `infra/config/environments.ts`.
 
 ## CI/CD
 
-Pipeline GitHub Actions: `.github/workflows/` (por implementar)
+Pipeline GitHub Actions: `.github/workflows/ci-cd.yml`
 - Push a `dev` → deploy automático a dev
 - Tag `v*.*.*` → deploy a prod con aprobación manual

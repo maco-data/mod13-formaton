@@ -5,7 +5,18 @@ import { CONSTANTS } from '../shared/constants';
 
 const eb = new EventBridgeClient({});
 
-export async function publishStudentRegistered(payload: { registration: Registration; workshop: Workshop }): Promise<void> {
+interface StudentRegisteredPayload {
+  registration: Registration;
+  workshop: Workshop;
+  user: {
+    id: string;
+    email: string;
+    givenName: string;
+    familyName: string;
+  };
+}
+
+export async function publishStudentRegistered(payload: StudentRegisteredPayload): Promise<void> {
   await eb.send(new PutEventsCommand({
     Entries: [{
       EventBusName: process.env.EVENT_BUS_NAME,

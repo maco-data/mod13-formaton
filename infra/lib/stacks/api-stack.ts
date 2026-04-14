@@ -4,6 +4,7 @@ import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as events from 'aws-cdk-lib/aws-events';
+import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
@@ -84,6 +85,17 @@ export class ApiStack extends cdk.Stack {
         actions: ['ses:SendEmail', 'ses:SendRawEmail'],
         resources: ['*'],
       }));
+    });
+
+    // ── EventBridge rules ─────────────────────────────────────────────────
+    new events.Rule(this, 'StudentRegisteredRule', {
+      eventBus: props.eventBus,
+      description: 'Dispara la notificación de confirmación al registrarse un estudiante',
+      eventPattern: {
+        source: ['formaton.app'],
+        detailType: ['student.registered'],
+      },
+      targets: [new targets.LambdaFunction(sendConfirmation)],
     });
 
     // ── API Gateway ───────────────────────────────────────────────────────

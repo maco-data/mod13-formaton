@@ -52,6 +52,7 @@ Usuario (browser)
 
 ### EventsStack (`infra/lib/stacks/events-stack.ts`)
 - **EventBridge custom bus**: `formaton-events-{env}`
+- **Regla activa**: `student.registered` → Lambda `send-confirmation`
 - **Archive**: 90 días en producción para replay
 - **SQS DLQ**: retención 14 días para mensajes fallidos
 
@@ -59,6 +60,7 @@ Usuario (browser)
 - **API Gateway REST** con stage por entorno
 - **Cognito Authorizer** en todas las rutas protegidas
 - **Lambdas Node.js 20.x** con X-Ray, reserva de concurrencia, DLQ
+- **Eventos de dominio** publicados en EventBridge (`workshop.created`, `student.registered`)
 - **IAM least-privilege**: cada Lambda solo accede a lo que necesita
 - **CORS**: configurado por dominio
 
@@ -68,6 +70,7 @@ Usuario (browser)
 - **Behaviors**: `/api/*` → API Gateway, `/*` → S3
 - **SPA fallback**: 403/404 → `index.html`
 - **ACM**: certificado TLS en `us-east-1`
+- **Despliegue dev**: frontend activo en CloudFront
 
 ### ObservabilityStack (`infra/lib/stacks/observability-stack.ts`)
 - **CloudWatch Alarms**: 5XX API, latencia P95, errores Lambda, throttles
@@ -109,7 +112,7 @@ Usuario (browser)
 
 ---
 
-## CI/CD (por implementar en `.github/workflows/`)
+## CI/CD
 
 ```
 feature branch → PR → main

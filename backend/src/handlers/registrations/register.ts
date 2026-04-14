@@ -2,7 +2,7 @@ import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { getItem, putItem, updateItem } from '../../shared/utils/dynamo-client';
 import { created, notFound, conflict, badRequest, forbidden } from '../../shared/utils/response';
 import { withErrorHandler } from '../../shared/middleware/error-handler';
-import { getUserId } from '../../shared/middleware/auth';
+import { getClaims, getUserId } from '../../shared/middleware/auth';
 import { Workshop } from '../../shared/models/workshop.model';
 import { Registration } from '../../shared/models/registration.model';
 import { publishStudentRegistered } from '../../events/student-registered';
@@ -16,6 +16,7 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
   if (!workshopId) return badRequest('workshopId requerido');
 
   const userId = getUserId(event);
+  const claims = getClaims(event);
 
   const workshop = await getItem<Workshop>(`WORKSHOP#${workshopId}`, 'META');
   if (!workshop) return notFound('Workshop');
@@ -43,7 +44,16 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
 
   await putItem(registration);
   await updateItem(`WORKSHOP#${workshopId}`, 'META', { enrolledCount: workshop.enrolledCount + 1 });
-  await publishStudentRegistered({ registration, workshop });
+  await publishStudentRegistered({
+    registration,
+    workshop,
+    user: {
+      id: userId,
+      email: claims.email,
+      givenName: claims.given_name,
+      familyName: claims.family_name,
+    },
+  });
 
   return created(registration);
 });
