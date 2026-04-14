@@ -18,6 +18,9 @@ export interface CourseCardData {
 interface Props {
   course: CourseCardData;
   onClick?: () => void;
+  actionLabel?: string;
+  actionDisabled?: boolean;
+  onAction?: () => void;
 }
 
 const CATEGORY_COLORS: Record<string, { color: string; bg: string; icon: string }> = {
@@ -37,7 +40,7 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   draft:       { label: 'Borrador',   cls: 'draft' },
 };
 
-export default function CourseCard({ course, onClick }: Props) {
+export default function CourseCard({ course, onClick, actionLabel, actionDisabled = false, onAction }: Props) {
   const theme = CATEGORY_COLORS[course.category] ?? CATEGORY_COLORS['default'];
   const status = STATUS_LABELS[course.status] ?? { label: course.status, cls: 'draft' };
   const pct = course.capacity > 0 ? Math.round((course.enrolledCount / course.capacity) * 100) : 0;
@@ -72,6 +75,19 @@ export default function CourseCard({ course, onClick }: Props) {
           </div>
           <span className={`${styles.status} ${styles[status.cls]}`}>{status.label}</span>
         </div>
+
+        {actionLabel && (
+          <button
+            className={styles.action}
+            disabled={actionDisabled}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAction?.();
+            }}
+          >
+            {actionLabel}
+          </button>
+        )}
       </div>
     </div>
   );

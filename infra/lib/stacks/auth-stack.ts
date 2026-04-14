@@ -68,7 +68,8 @@ export class AuthStack extends cdk.Stack {
       userPoolClientName: `formaton-web-${props.config.envName}`,
       authFlows: {
         userSrp: true,
-        userPassword: false, // usar SRP siempre
+        userPassword: props.config.envName !== 'prod',
+        adminUserPassword: props.config.envName !== 'prod',
       },
       oAuth: {
         flows: { authorizationCodeGrant: true },

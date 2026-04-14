@@ -4,7 +4,7 @@ export interface EnvConfig {
   domainName?: string;
   hostedZoneId?: string;
   logRetentionDays: number;
-  lambdaReservedConcurrency: number;
+  lambdaReservedConcurrency?: number;
   apiThrottlingRateLimit: number;
   apiThrottlingBurstLimit: number;
   enableWaf: boolean;
@@ -27,6 +27,7 @@ const configs: Record<string, EnvConfig> = {
   dev: {
     ...defaults,
     envName: 'dev',
+    lambdaReservedConcurrency: undefined,
     enableWaf: false,
   },
   prod: {

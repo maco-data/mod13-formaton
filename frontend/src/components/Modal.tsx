@@ -27,6 +27,11 @@ export default function Modal({ isOpen, onClose, onSubmit }: Props) {
     setForm({ name:'', category:'', mode:'presencial', location:'', startAt:'', endAt:'', durationHours:'', capacity:'', description:'', cert:'obligatorio' });
   };
 
+  const toIsoString = (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? value : date.toISOString();
+  };
+
   const handleSave = async () => {
     const durationHours = Number(form.durationHours);
     const capacity = Number(form.capacity);
@@ -42,8 +47,8 @@ export default function Modal({ isOpen, onClose, onSubmit }: Props) {
       category: form.category,
       mode: form.mode as CreateWorkshopPayload['mode'],
       location: form.location.trim() || undefined,
-      startAt: form.startAt,
-      endAt: form.endAt,
+      startAt: toIsoString(form.startAt),
+      endAt: toIsoString(form.endAt),
       durationHours,
       capacity,
       generatesCert: form.cert !== 'ninguno',

@@ -4,7 +4,9 @@ import CourseCard from '../components/CourseCard';
 import Modal from '../components/Modal';
 import { useToast } from '../store/ui.store';
 import { useCourses } from '../hooks/useCourses';
+import { useAuth } from '../hooks/useAuth';
 import type { CreateWorkshopPayload, Workshop } from '../services/courses.service';
+import coursesService from '../services/courses.service';
 import styles from './Courses.module.css';
 
 const FILTERS = [
@@ -24,9 +26,11 @@ export default function Courses() {
   const [filter, setFilter]       = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch]       = useState('');
+  const [registeringId, setRegisteringId] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { showToast }             = useToast();
+  const { user, isAdmin }         = useAuth();
   const { courses, loading, error, create, reload } = useCourses(
     filter === 'all' ? undefined : { status: filter }
   );
@@ -40,6 +44,19 @@ export default function Courses() {
       showToast('Formación creada correctamente');
     } catch (err) {
       showToast((err as Error).message);
+    }
+  };
+
+  const handleRegister = async (courseId: string) => {
+    try {
+      setRegisteringId(courseId);
+      await coursesService.register(courseId);
+      showToast('Inscripción realizada correctamente');
+      await reload();
+    } catch (err) {
+      showToast((err as Error).message);
+    } finally {
+      setRegisteringId(null);
     }
   };
 
@@ -80,11 +97,19 @@ export default function Courses() {
               placeholder="Buscar formación..."
             />
           </div>
-          <button className={styles.btnPrimary} onClick={() => setModalOpen(true)}>
-            + Nueva formación
-          </button>
+          {isAdmin ? (
+            <button className={styles.btnPrimary} onClick={() => setModalOpen(true)}>
+              + Nueva formación
+            </button>
+          ) : null}
         </div>
       </div>
+
+      {!isAdmin && user?.role === 'student' ? (
+        <div className={styles.infoBanner}>
+          Estás en modo participante. Desde aquí puedes explorar el catálogo y registrarte en formaciones activas.
+        </div>
+      ) : null}
 
       {error && (
         <div className={styles.empty}>
@@ -108,6 +133,13 @@ export default function Courses() {
               key={c.id}
               course={{ ...c, mode: formatMode(c.mode) }}
               onClick={() => showToast(`Abriendo: ${c.name}`)}
+              actionLabel={!isAdmin && user?.role === 'student' ? 'Inscribirme' : undefined}
+              actionDisabled={
+                registeringId === c.id ||
+                c.status !== 'scheduled' ||
+                c.enrolledCount >= c.capacity
+              }
+              onAction={() => void handleRegister(c.id)}
             />
           ))}
         </div>

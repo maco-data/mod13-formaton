@@ -8,6 +8,7 @@ export default function Login() {
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const isDev = import.meta.env.VITE_ENV === 'dev';
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />;
 
@@ -60,6 +61,12 @@ export default function Login() {
           {isDemoMode && (
             <div className={styles.demoBanner}>
               🧪 <strong>Modo demo</strong> — introduce cualquier email y contraseña para entrar.
+            </div>
+          )}
+
+          {!isDemoMode && isDev && (
+            <div className={styles.demoBanner}>
+              Admin: <strong>admin@formaton.demo</strong> · Student: <strong>student@formaton.demo</strong> · Clave: <strong>Formaton2026!</strong>
             </div>
           )}
 
