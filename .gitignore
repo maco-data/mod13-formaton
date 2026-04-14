@@ -7,3 +7,4 @@ cdk.out/
 coverage/
 .DS_Store
 *.d.ts
+!frontend/src/vite-env.d.ts
