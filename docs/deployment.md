@@ -123,6 +123,17 @@ El despliegue de Lambdas usa alias `live` y CodeDeploy:
 - `dev`: canary progresivo
 - `prod`: lineal al 10% por minuto con rollback automático si aparece una alarma de errores
 
+Puedes verificar localmente que el rollback por alarma sigue cableado tras sintetizar:
+
+```bash
+cd infra
+CDK_DEFAULT_ACCOUNT=123456789012 CDK_DEFAULT_REGION=eu-west-1 npx cdk synth --context env=dev --quiet
+npm run verify:blue-green:dev
+
+CDK_DEFAULT_ACCOUNT=123456789012 CDK_DEFAULT_REGION=eu-west-1 npx cdk synth --context env=prod --quiet
+npm run verify:blue-green:prod
+```
+
 El frontend de `prod` crea además:
 - certificado ACM en `us-east-1` validado por DNS
 - registros `A` y `AAAA` en Route 53 apuntando a CloudFront
