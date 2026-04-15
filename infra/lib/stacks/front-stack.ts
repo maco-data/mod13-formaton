@@ -4,6 +4,9 @@ import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
 import { Construct } from 'constructs';
 import { EnvConfig } from '../../config/environments';
 
@@ -17,6 +20,7 @@ interface FrontStackProps extends cdk.StackProps {
 
 export class FrontStack extends cdk.Stack {
   public readonly distributionUrl: string;
+  public readonly customDomainUrl?: string;
 
   constructor(scope: Construct, id: string, props: FrontStackProps) {
     super(scope, id, props);
@@ -149,10 +153,27 @@ function handler(event) {
         })
       : undefined;
 
+    const hasCustomDomain = Boolean(props.config.domainName && props.config.hostedZoneId && props.config.hostedZoneName);
+    const hostedZone = hasCustomDomain
+      ? route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+          hostedZoneId: props.config.hostedZoneId!,
+          zoneName: props.config.hostedZoneName!,
+        })
+      : undefined;
+
+    const certificate = hostedZone && props.config.domainName
+      ? new acm.Certificate(this, 'FrontCertificate', {
+          domainName: props.config.domainName,
+          validation: acm.CertificateValidation.fromDns(hostedZone),
+        })
+      : undefined;
+
     // ── CloudFront Distribution ───────────────────────────────────────────
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: `Formaton Frontend — ${props.config.envName}`,
       defaultRootObject: 'index.html',
+      domainNames: certificate && props.config.domainName ? [props.config.domainName] : undefined,
+      certificate,
       webAclId: webAcl?.attrArn,
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessControl(siteBucket, { originAccessControl: oac }),
@@ -191,11 +212,32 @@ function handler(event) {
     });
 
     this.distributionUrl = `https://${distribution.distributionDomainName}`;
+    this.customDomainUrl = props.config.domainName ? `https://${props.config.domainName}` : undefined;
+
+    if (hostedZone && props.config.domainName) {
+      new route53.ARecord(this, 'FrontAliasRecord', {
+        zone: hostedZone,
+        recordName: props.config.domainName,
+        target: route53.RecordTarget.fromAlias(new route53targets.CloudFrontTarget(distribution)),
+      });
+
+      new route53.AaaaRecord(this, 'FrontAliasRecordIpv6', {
+        zone: hostedZone,
+        recordName: props.config.domainName,
+        target: route53.RecordTarget.fromAlias(new route53targets.CloudFrontTarget(distribution)),
+      });
+    }
 
     // ── Outputs ───────────────────────────────────────────────────────────
     new cdk.CfnOutput(this, 'DistributionUrl', { value: this.distributionUrl, exportName: `formaton-frontend-url-${props.config.envName}` });
     new cdk.CfnOutput(this, 'DistributionId', { value: distribution.distributionId });
     new cdk.CfnOutput(this, 'SiteBucketName', { value: siteBucket.bucketName });
+    if (certificate) {
+      new cdk.CfnOutput(this, 'CertificateArn', { value: certificate.certificateArn });
+    }
+    if (this.customDomainUrl) {
+      new cdk.CfnOutput(this, 'CustomDomainUrl', { value: this.customDomainUrl, exportName: `formaton-custom-domain-${props.config.envName}` });
+    }
     if (webAcl) {
       new cdk.CfnOutput(this, 'WebAclArn', { value: webAcl.attrArn, exportName: `formaton-waf-arn-${props.config.envName}` });
     }

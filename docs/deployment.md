@@ -31,7 +31,7 @@ cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)
 ## 3. Configurar entorno
 
 Editar `infra/config/environments.ts`:
-- Actualizar `domainName` y `hostedZoneId` para producción.
+- Actualizar `domainName`, `hostedZoneName` y `hostedZoneId` para producción.
 - Ajustar `wafRateLimit` si el tráfico esperado en producción requiere un umbral distinto.
 
 Crear `.env.local` en `frontend/` (ver `.env.example`).
@@ -122,6 +122,11 @@ cd infra && cdk deploy --all --context env=prod --require-approval broadening
 El despliegue de Lambdas usa alias `live` y CodeDeploy:
 - `dev`: canary progresivo
 - `prod`: lineal al 10% por minuto con rollback automático si aparece una alarma de errores
+
+El frontend de `prod` crea además:
+- certificado ACM en `us-east-1` validado por DNS
+- registros `A` y `AAAA` en Route 53 apuntando a CloudFront
+- salida `CustomDomainUrl` para validar el dominio final
 
 ---
 

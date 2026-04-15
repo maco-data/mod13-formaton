@@ -2,6 +2,7 @@ export interface EnvConfig {
   envName: string;
   region: string;
   domainName?: string;
+  hostedZoneName?: string;
   hostedZoneId?: string;
   logRetentionDays: number;
   lambdaReservedConcurrency?: number;
@@ -38,6 +39,7 @@ const configs: Record<string, EnvConfig> = {
     ...defaults,
     envName: 'prod',
     domainName: 'formaton.tuempresa.es',        // ← actualizar
+    hostedZoneName: 'tuempresa.es',             // ← actualizar
     hostedZoneId: 'ZXXXXXXXXXXXXX',             // ← actualizar
     logRetentionDays: 90,
     lambdaReservedConcurrency: 50,

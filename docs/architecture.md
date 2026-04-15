@@ -69,7 +69,8 @@ Usuario (browser)
 - **CloudFront OAC**: acceso seguro al bucket
 - **Behaviors**: `/api/*` → API Gateway con reescritura de path y `/*` → S3
 - **SPA fallback**: 403/404 → `index.html`
-- **ACM**: certificado TLS en `us-east-1`
+- **ACM**: certificado TLS en `us-east-1` con validación DNS en Route 53
+- **Route 53**: alias `A/AAAA` al dominio de CloudFront en producción
 - **WAF v2** en prod con reglas AWS managed + rate limiting por IP
 - **Despliegue dev**: frontend activo en CloudFront
 
