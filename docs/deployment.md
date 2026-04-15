@@ -174,6 +174,12 @@ curl -I https://<DistributionUrl>
 curl -s https://<DistributionUrl>/api/healthz
 ```
 
+En CI el smoke test post-deploy valida algo más fuerte que un `200`:
+- la respuesta de API Gateway y la de CloudFront deben ser JSON válido
+- deben incluir `items[]` y `count`
+- `count` debe coincidir con `items.length`
+- ambas rutas deben devolver la misma lista para `limit=1`
+
 ---
 
 ## Rollback

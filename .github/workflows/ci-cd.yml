@@ -28,7 +28,7 @@ jobs:
         run: npm run install:all
 
       - name: Lint backend
-        run: npm --workspace=backend run lint || true
+        run: npm --workspace=backend run lint
 
       - name: Test backend
         run: npm --workspace=backend run test:coverage
@@ -115,12 +115,9 @@ jobs:
         run: |
           API_URL=$(jq -r '."Formaton-Api-dev".ApiUrl' cdk-outputs-dev.json)
           FRONT_URL=$(jq -r '."Formaton-Front-dev".DistributionUrl' cdk-outputs-dev.json)
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}workshops?limit=1")
-          EDGE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${FRONT_URL}/api/workshops?limit=1")
-          echo "GET ${API_URL}workshops?limit=1 → HTTP $STATUS"
-          echo "GET ${FRONT_URL}/api/workshops?limit=1 → HTTP $EDGE_STATUS"
-          [ "$STATUS" = "200" ] || exit 1
-          [ "$EDGE_STATUS" = "200" ] || exit 1
+          node infra/scripts/verify-smoke-response.js \
+            "${API_URL}workshops?limit=1" \
+            "${FRONT_URL}/api/workshops?limit=1"
 
   # ──────────────────────────────────────────────────────────────────────────
   deploy-prod:
@@ -177,9 +174,6 @@ jobs:
         run: |
           API_URL=$(jq -r '."Formaton-Api-prod".ApiUrl' cdk-outputs-prod.json)
           FRONT_URL=$(jq -r '."Formaton-Front-prod".DistributionUrl' cdk-outputs-prod.json)
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}workshops?limit=1")
-          EDGE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${FRONT_URL}/api/workshops?limit=1")
-          echo "GET ${API_URL}workshops?limit=1 → HTTP $STATUS"
-          echo "GET ${FRONT_URL}/api/workshops?limit=1 → HTTP $EDGE_STATUS"
-          [ "$STATUS" = "200" ] || exit 1
-          [ "$EDGE_STATUS" = "200" ] || exit 1
+          node infra/scripts/verify-smoke-response.js \
+            "${API_URL}workshops?limit=1" \
+            "${FRONT_URL}/api/workshops?limit=1"
