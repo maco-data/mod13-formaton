@@ -2,7 +2,8 @@ import { useState } from 'react';
 import Table, { Column } from '../components/Table';
 import { useToast } from '../store/ui.store';
 import { useParticipants } from '../hooks/useParticipants';
-import type { Participant } from '../services/participants.service';
+import type { CreateParticipantPayload, Participant } from '../services/participants.service';
+import { useAuth } from '../hooks/useAuth';
 import styles from './Participants.module.css';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
@@ -40,8 +41,18 @@ function formatCreatedAt(value: string) {
 export default function Participants() {
   const [search, setSearch]     = useState('');
   const [dept, setDept]         = useState('Todos');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState<CreateParticipantPayload>({
+    email: '',
+    givenName: '',
+    familyName: '',
+    department: '',
+    role: 'student',
+  });
   const { showToast }           = useToast();
-  const { participants, loading, error, reload } = useParticipants();
+  const { isAdmin } = useAuth();
+  const { participants, loading, error, create, reload } = useParticipants();
 
   const rows: ParticipantRow[] = participants.map((participant) => {
     const name = participant.fullName || `${participant.givenName} ${participant.familyName}`.trim() || participant.email;
@@ -113,13 +124,56 @@ export default function Participants() {
       render: p => (
         <button
           className={styles.btnView}
-          onClick={e => { e.stopPropagation(); showToast(`Ver perfil: ${p.name}`); }}
+          onClick={e => {
+            e.stopPropagation();
+            showToast(`${p.name} · ${p.email} · ${p.dept}`);
+          }}
         >
           Ver
         </button>
       ),
     },
   ];
+
+  const setField = (key: keyof CreateParticipantPayload) =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      setForm((current) => ({ ...current, [key]: event.target.value }));
+    };
+
+  const resetForm = () => {
+    setForm({
+      email: '',
+      givenName: '',
+      familyName: '',
+      department: '',
+      role: 'student',
+    });
+  };
+
+  const handleCreate = async () => {
+    if (!form.email || !form.givenName || !form.familyName || !form.department) {
+      showToast('Completa nombre, apellidos, email y departamento');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      await create({
+        ...form,
+        email: form.email.trim(),
+        givenName: form.givenName.trim(),
+        familyName: form.familyName.trim(),
+        department: form.department.trim(),
+      });
+      resetForm();
+      setModalOpen(false);
+      showToast('Participante creado correctamente');
+    } catch (err) {
+      showToast((err as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className={styles.page}>
@@ -145,7 +199,16 @@ export default function Participants() {
           <button className={styles.btnOutline} onClick={() => showToast('Exportando participantes...')}>
             Exportar
           </button>
-          <button className={styles.btnPrimary} onClick={() => showToast('Importar participantes')}>
+          <button
+            className={styles.btnPrimary}
+            onClick={() => {
+              if (!isAdmin) {
+                showToast('Solo los administradores pueden añadir participantes');
+                return;
+              }
+              setModalOpen(true);
+            }}
+          >
             + Añadir
           </button>
         </div>
@@ -166,6 +229,61 @@ export default function Participants() {
           onRowClick={(participant) => showToast(`Abriendo perfil: ${participant.name}`)}
         />
       </div>
+
+      {modalOpen && (
+        <div className={styles.overlay} onClick={(event) => {
+          if (event.target === event.currentTarget) setModalOpen(false);
+        }}>
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <h2>Añadir participante</h2>
+              <button className={styles.closeBtn} onClick={() => setModalOpen(false)}>✕</button>
+            </div>
+
+            <div className={styles.modalBody}>
+              <div className={styles.formRow}>
+                <div className={styles.formGroup}>
+                  <label>Nombre *</label>
+                  <input value={form.givenName} onChange={setField('givenName')} placeholder="Laura" />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Apellidos *</label>
+                  <input value={form.familyName} onChange={setField('familyName')} placeholder="Martínez" />
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Correo electrónico *</label>
+                <input type="email" value={form.email} onChange={setField('email')} placeholder="laura@empresa.es" />
+              </div>
+
+              <div className={styles.formRow}>
+                <div className={styles.formGroup}>
+                  <label>Departamento *</label>
+                  <input value={form.department} onChange={setField('department')} placeholder="Operaciones" />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Rol</label>
+                  <select value={form.role} onChange={setField('role')}>
+                    <option value="student">Student</option>
+                    <option value="manager">Manager</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.modalActions}>
+              <button className={styles.btnOutline} onClick={() => setModalOpen(false)}>
+                Cancelar
+              </button>
+              <button className={styles.btnPrimary} onClick={() => void handleCreate()} disabled={submitting}>
+                {submitting ? 'Guardando...' : 'Guardar participante'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

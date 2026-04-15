@@ -63,11 +63,15 @@ export default function Courses() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('create') === '1') {
-      setModalOpen(true);
+      if (isAdmin) {
+        setModalOpen(true);
+      } else {
+        showToast('Solo los administradores pueden crear formaciones');
+      }
       params.delete('create');
       navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
     }
-  }, [location.pathname, location.search, navigate]);
+  }, [isAdmin, location.pathname, location.search, navigate, showToast]);
 
   return (
     <div className={styles.page}>
@@ -145,7 +149,9 @@ export default function Courses() {
         </div>
       ) : null}
 
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleCreate} />
+      {isAdmin ? (
+        <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleCreate} />
+      ) : null}
     </div>
   );
 }

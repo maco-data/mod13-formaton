@@ -18,10 +18,11 @@ export default function TopBar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { isDemoMode, logout } = useAuth();
+  const { isAdmin, isDemoMode, logout } = useAuth();
 
   const pageTitle = PAGE_TITLES[location.pathname] ?? 'Formaton';
-  const canCreateCourse = location.pathname === '/courses';
+  const isCoursesPage = location.pathname === '/courses';
+  const canCreateCourse = isCoursesPage && isAdmin;
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -41,6 +42,11 @@ export default function TopBar() {
   const handlePrimaryAction = () => {
     if (canCreateCourse) {
       navigate('/courses?create=1');
+      return;
+    }
+
+    if (isCoursesPage) {
+      showToast('Solo los administradores pueden crear formaciones');
       return;
     }
 
@@ -101,22 +107,24 @@ export default function TopBar() {
           <span className={styles.notifDot} />
         </button>
 
-        <button
-          type="button"
-          className={styles.iconBtn}
-          onClick={handlePrimaryAction}
-          aria-label={canCreateCourse ? 'Nueva formación' : 'Ir a formaciones'}
-          title={canCreateCourse ? 'Nueva formación' : 'Ir a formaciones'}
-        >
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.8}
-              d="M12 5v14m-7-7h14"
-            />
-          </svg>
-        </button>
+        {(!isCoursesPage || isAdmin) && (
+          <button
+            type="button"
+            className={styles.iconBtn}
+            onClick={handlePrimaryAction}
+            aria-label={canCreateCourse ? 'Nueva formación' : 'Ir a formaciones'}
+            title={canCreateCourse ? 'Nueva formación' : 'Ir a formaciones'}
+          >
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="18" height="18">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.8}
+                d="M12 5v14m-7-7h14"
+              />
+            </svg>
+          </button>
+        )}
 
         <button
           type="button"

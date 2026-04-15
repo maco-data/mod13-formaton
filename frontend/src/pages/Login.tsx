@@ -10,7 +10,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
   const isDev = import.meta.env.VITE_ENV === 'dev';
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to="/courses" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -61,6 +61,9 @@ export class ApiStack extends cdk.Stack {
     const issueCert           = fn('IssueCert',           'handlers/certs/issue.handler',                'POST /certs/issue (admin)');
     const listCerts           = fn('ListCerts',           'handlers/certs/list.handler',                 'GET /certs');
     const verifyCert          = fn('VerifyCert',          'handlers/certs/verify.handler',               'GET /certs/{id}/verify (público)');
+    const listUsers           = fn('ListUsers',           'handlers/users/list.handler',                 'GET /users (admin)');
+    const getUser             = fn('GetUser',             'handlers/users/get.handler',                  'GET /users/{id}');
+    const createUser          = fn('CreateUser',          'handlers/users/create.handler',               'POST /users (admin)');
     const sendConfirmation    = fn('SendConfirmation',    'handlers/notifications/send-confirmation.handler', 'Notificación de inscripción');
     const sendReminder        = fn('SendReminder',        'handlers/notifications/send-reminder.handler',    'Recordatorio 24h antes');
 
@@ -68,12 +71,13 @@ export class ApiStack extends cdk.Stack {
       listWorkshops, getWorkshop, createWorkshop, updateWorkshop, deleteWorkshop,
       registerStudent, unregisterStudent, listRegistrations,
       issueCert, listCerts, verifyCert,
+      listUsers, getUser, createUser,
       sendConfirmation, sendReminder,
     ];
 
     // ── IAM permissions ───────────────────────────────────────────────────
-    const tableReadFns  = [listWorkshops, getWorkshop, listRegistrations, listCerts, verifyCert, registerStudent];
-    const tableWriteFns = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert];
+    const tableReadFns  = [listWorkshops, getWorkshop, listRegistrations, listCerts, verifyCert, registerStudent, listUsers, getUser];
+    const tableWriteFns = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, createUser];
     const eventFns      = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert];
 
     tableReadFns.forEach(f  => props.table.grantReadData(f));
@@ -167,6 +171,13 @@ export class ApiStack extends cdk.Stack {
 
     const cert = certs.addResource('{id}');
     cert.addResource('verify').addMethod('GET', new apigateway.LambdaIntegration(verifyCert), publicOptions);
+
+    const users = this.api.root.addResource('users');
+    users.addMethod('GET', new apigateway.LambdaIntegration(listUsers), authOptions);
+    users.addMethod('POST', new apigateway.LambdaIntegration(createUser), authOptions);
+
+    const user = users.addResource('{id}');
+    user.addMethod('GET', new apigateway.LambdaIntegration(getUser), authOptions);
 
     this.apiUrl = this.api.url;
 

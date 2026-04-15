@@ -6,7 +6,9 @@ import {
   UpdateCommand,
   DeleteCommand,
   QueryCommand,
+  ScanCommand,
   QueryCommandInput,
+  ScanCommandInput,
 } from '@aws-sdk/lib-dynamodb';
 
 const raw = new DynamoDBClient({ region: process.env.AWS_REGION ?? 'eu-west-1' });
@@ -35,6 +37,13 @@ export async function deleteItem(pk: string, sk: string): Promise<void> {
 export async function queryItems<T>(params: Omit<QueryCommandInput, 'TableName'>): Promise<{ items: T[]; lastKey?: Record<string, unknown> }> {
   const { Items = [], LastEvaluatedKey } = await ddb.send(
     new QueryCommand({ TableName: TABLE, ...params })
+  );
+  return { items: Items as T[], lastKey: LastEvaluatedKey as Record<string, unknown> | undefined };
+}
+
+export async function scanItems<T>(params: Omit<ScanCommandInput, 'TableName'> = {}): Promise<{ items: T[]; lastKey?: Record<string, unknown> }> {
+  const { Items = [], LastEvaluatedKey } = await ddb.send(
+    new ScanCommand({ TableName: TABLE, ...params })
   );
   return { items: Items as T[], lastKey: LastEvaluatedKey as Record<string, unknown> | undefined };
 }

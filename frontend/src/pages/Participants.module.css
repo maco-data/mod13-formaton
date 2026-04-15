@@ -61,3 +61,88 @@
   transition: all 0.15s;
 }
 .btnView:hover { border-color: var(--primary); color: var(--primary); }
+
+.overlay {
+  position: fixed; inset: 0; background: rgba(27, 27, 27, 0.4);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  z-index: 50;
+}
+
+.modal {
+  width: min(100%, 640px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.modalHeader,
+.modalActions {
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.modalHeader {
+  border-bottom: 1px solid var(--border-light);
+}
+
+.modalHeader h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.closeBtn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-primary);
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+}
+
+.modalBody {
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+}
+
+.formRow {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.formGroup {
+  display: grid;
+  gap: 6px;
+}
+
+.formGroup label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.formGroup input,
+.formGroup select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text-primary);
+  padding: 10px 12px;
+  font: inherit;
+}
+
+.modalActions {
+  border-top: 1px solid var(--border-light);
+  justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .formRow {
+    grid-template-columns: 1fr;
+  }
+}

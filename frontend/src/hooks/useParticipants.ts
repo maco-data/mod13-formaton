@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import participantsService, { type Participant } from '../services/participants.service';
+import participantsService, { type CreateParticipantPayload, type Participant } from '../services/participants.service';
 
 interface State {
   items: Participant[];
@@ -24,10 +24,17 @@ export function useParticipants() {
     void load();
   }, [load]);
 
+  const create = useCallback(async (payload: CreateParticipantPayload): Promise<Participant> => {
+    const participant = await participantsService.create(payload);
+    setState((s) => ({ ...s, items: [participant, ...s.items] }));
+    return participant;
+  }, []);
+
   return {
     participants: state.items,
     loading: state.loading,
     error: state.error,
+    create,
     reload: load,
   };
 }

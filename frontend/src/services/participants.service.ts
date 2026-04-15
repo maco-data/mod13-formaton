@@ -12,12 +12,23 @@ export interface Participant {
   createdAt: string;
 }
 
+export interface CreateParticipantPayload {
+  email: string;
+  givenName: string;
+  familyName: string;
+  department: string;
+  role: Participant['role'];
+}
+
 export const participantsService = {
   list: () =>
     api.get<{ items: Participant[]; count: number }>('/users'),
 
   get: (id: string) =>
     api.get<Participant>(`/users/${id}`),
+
+  create: (payload: CreateParticipantPayload) =>
+    api.post<Participant>('/users', payload),
 };
 
 export default participantsService;
