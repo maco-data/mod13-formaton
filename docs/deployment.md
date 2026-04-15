@@ -164,7 +164,7 @@ aws cognito-idp admin-add-user-to-group \
 ## 9. Verificar el despliegue
 
 ```bash
-# Smoke test: listar talleres (endpoint público)
+# Smoke test: listar talleres (endpoint público estable usado también en CI)
 curl -s https://<ApiUrl>/workshops | jq '.count'
 
 # Verificar distribución CloudFront
