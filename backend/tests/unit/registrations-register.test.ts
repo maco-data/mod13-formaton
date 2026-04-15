@@ -67,13 +67,13 @@ describe('POST /workshops/{id}/register', () => {
     expect(res.statusCode).toBe(409);
   });
 
-  it('es idempotente: devuelve 201 si ya está inscrito', async () => {
+  it('es idempotente: devuelve 200 si ya está inscrito', async () => {
     mockGet.mockImplementation(async (pk, sk) => {
       if (sk === 'META') return baseWorkshop as never;
       return { status: 'confirmed', workshopId: 'ws-1', userId: 'user-99' } as never;
     });
     const res = await handler(makeEvent('ws-1') as APIGatewayProxyEvent);
-    expect(res.statusCode).toBe(201);
+    expect(res.statusCode).toBe(200);
     expect(mockPut).not.toHaveBeenCalled();
   });
 

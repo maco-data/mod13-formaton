@@ -6,6 +6,7 @@ import { withErrorHandler } from '../../shared/middleware/error-handler';
 import { requireAdmin } from '../../shared/middleware/auth';
 import { Workshop, CreateWorkshopInput } from '../../shared/models/workshop.model';
 import { publishEvent } from '../../events/workshop-created';
+import { validateCreateWorkshopInput } from '../../shared/validation/workshop';
 
 /**
  * POST /workshops  (admin)
@@ -23,10 +24,10 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
     return badRequest('JSON inválido');
   }
 
+  const validationError = validateCreateWorkshopInput(input);
+  if (validationError) return badRequest(validationError);
+
   const { name, category, mode, startAt, endAt, durationHours, capacity } = input;
-  if (!name || !category || !mode || !startAt || !endAt || !durationHours || !capacity) {
-    return badRequest('Campos requeridos: name, category, mode, startAt, endAt, durationHours, capacity');
-  }
 
   const id  = randomUUID();
   const now = new Date().toISOString();

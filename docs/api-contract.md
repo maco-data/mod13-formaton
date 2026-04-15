@@ -53,6 +53,13 @@ Detalle de un taller.
 ### `POST /workshops` — Admin
 Crea un nuevo taller.
 
+Validaciones de negocio:
+- `mode` debe ser `presencial`, `online` o `hibrida`
+- `startAt` debe ser anterior a `endAt`
+- `durationHours` debe ser mayor que `0`
+- `capacity` debe ser un entero mayor que `0`
+- `location` es obligatoria cuando `mode` es `presencial` o `hibrida`
+
 **Body:**
 ```json
 {
@@ -78,6 +85,7 @@ Crea un nuevo taller.
 Actualiza campos del taller (parcial).
 
 **Body:** cualquier subconjunto de campos de `POST /workshops`.
+Mantiene las mismas validaciones que `POST /workshops` y además impide dejar `capacity` por debajo de `enrolledCount`.
 **Respuesta 200:** `Workshop` actualizado.
 
 ---
@@ -93,7 +101,7 @@ Cancela el taller (soft-delete → status: "cancelled").
 ### `POST /workshops/{id}/register` — Student autenticado
 Inscribe al usuario autenticado. Idempotente.
 
-**Respuesta 201:**
+**Respuesta 201** cuando crea la inscripción:
 ```json
 {
   "workshopId": "abc-123",
@@ -102,6 +110,7 @@ Inscribe al usuario autenticado. Idempotente.
   "registeredAt": "2026-04-12T10:00:00Z"
 }
 ```
+**Respuesta 200** si la inscripción ya existía y sigue confirmada.
 **Respuesta 409:** Taller completo o ya finalizado.
 
 ---

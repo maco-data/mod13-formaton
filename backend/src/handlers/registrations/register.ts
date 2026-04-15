@@ -1,6 +1,6 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { getItem, putItem, updateItem } from '../../shared/utils/dynamo-client';
-import { created, notFound, conflict, badRequest, forbidden } from '../../shared/utils/response';
+import { ok, created, notFound, conflict, badRequest, forbidden } from '../../shared/utils/response';
 import { withErrorHandler } from '../../shared/middleware/error-handler';
 import { getClaims, getUserId } from '../../shared/middleware/auth';
 import { Workshop } from '../../shared/models/workshop.model';
@@ -27,7 +27,7 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
   // Idempotencia: comprobar si ya existe
   const existing = await getItem<Registration>(`WORKSHOP#${workshopId}`, `REG#USER#${userId}`);
   if (existing && existing.status === 'confirmed') {
-    return created(existing);
+    return ok(existing);
   }
 
   const now = new Date().toISOString();
