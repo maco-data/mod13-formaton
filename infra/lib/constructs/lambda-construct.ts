@@ -10,6 +10,8 @@ interface FormatonLambdaProps {
   environment: Record<string, string>;
   reservedConcurrentExecutions?: number;
   enableXRay?: boolean;
+  enableDeploymentAlias?: boolean;
+  deploymentAliasName?: string;
   timeout?: cdk.Duration;
   memorySize?: number;
 }
@@ -20,6 +22,7 @@ interface FormatonLambdaProps {
  */
 export class FormatonLambda extends Construct {
   public readonly fn: lambda.Function;
+  public readonly liveAlias?: lambda.Alias;
 
   constructor(scope: Construct, id: string, props: FormatonLambdaProps) {
     super(scope, id);
@@ -41,5 +44,13 @@ export class FormatonLambda extends Construct {
       reservedConcurrentExecutions: props.reservedConcurrentExecutions,
       logGroup,
     });
+
+    if (props.enableDeploymentAlias) {
+      this.liveAlias = new lambda.Alias(this, 'LiveAlias', {
+        aliasName: props.deploymentAliasName ?? 'live',
+        description: 'Alias estable para despliegues progresivos con CodeDeploy',
+        version: this.fn.currentVersion,
+      });
+    }
   }
 }

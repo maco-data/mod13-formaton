@@ -32,6 +32,7 @@ cdk bootstrap aws://$(aws sts get-caller-identity --query Account --output text)
 
 Editar `infra/config/environments.ts`:
 - Actualizar `domainName` y `hostedZoneId` para producción.
+- Ajustar `wafRateLimit` si el tráfico esperado en producción requiere un umbral distinto.
 
 Crear `.env.local` en `frontend/` (ver `.env.example`).
 
@@ -60,7 +61,7 @@ Formaton-Api-dev.ApiUrl            = https://xxxxx.execute-api.eu-west-1.amazona
 Formaton-Front-dev.DistributionUrl = https://xxxx.cloudfront.net
 ```
 
-Copiar estos valores en `frontend/.env.local`.
+En local, usar `VITE_API_URL=/api` para que el frontend pase por CloudFront y quede cubierto por el WAF del edge.
 
 ---
 
@@ -118,6 +119,10 @@ git tag v1.0.0 && git push --tags
 cd infra && cdk deploy --all --context env=prod --require-approval broadening
 ```
 
+El despliegue de Lambdas usa alias `live` y CodeDeploy:
+- `dev`: canary progresivo
+- `prod`: lineal al 10% por minuto con rollback automático si aparece una alarma de errores
+
 ---
 
 ## 8. Crear primer usuario administrador
@@ -148,6 +153,9 @@ curl -s https://<ApiUrl>/workshops | jq '.count'
 
 # Verificar distribución CloudFront
 curl -I https://<DistributionUrl>
+
+# Verificar proxy API a través de CloudFront (camino protegido por WAF)
+curl -s https://<DistributionUrl>/api/healthz
 ```
 
 ---

@@ -33,6 +33,7 @@ const dataStack = new DataStack(app, `Formaton-Data-${envName}`, { env, config, 
 const eventsStack = new EventsStack(app, `Formaton-Events-${envName}`, { env, config, tags });
 
 const apiStack = new ApiStack(app, `Formaton-Api-${envName}`, {
+  crossRegionReferences: config.envName === 'prod',
   env, config, tags,
   userPool: authStack.userPool,
   table: dataStack.table,
@@ -41,6 +42,7 @@ const apiStack = new ApiStack(app, `Formaton-Api-${envName}`, {
 });
 
 const frontStack = new FrontStack(app, `Formaton-Front-${envName}`, {
+  crossRegionReferences: config.envName === 'prod',
   env: { ...env, region: config.envName === 'prod' ? 'us-east-1' : config.region },
   config,
   tags,

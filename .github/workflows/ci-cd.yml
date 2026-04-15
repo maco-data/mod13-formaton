@@ -39,7 +39,7 @@ jobs:
       - name: Build frontend
         run: npm --workspace=frontend run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL_DEV }}
+          VITE_API_URL: /api
           VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID_DEV }}
           VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID_DEV }}
           VITE_AWS_REGION: ${{ env.AWS_REGION }}
@@ -110,9 +110,13 @@ jobs:
       - name: Smoke test
         run: |
           API_URL=$(jq -r '."Formaton-Api-dev".ApiUrl' cdk-outputs-dev.json)
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}workshops?limit=1")
-          echo "GET /workshops → HTTP $STATUS"
+          FRONT_URL=$(jq -r '."Formaton-Front-dev".DistributionUrl' cdk-outputs-dev.json)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}healthz")
+          EDGE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${FRONT_URL}/api/healthz")
+          echo "GET ${API_URL}healthz → HTTP $STATUS"
+          echo "GET ${FRONT_URL}/api/healthz → HTTP $EDGE_STATUS"
           [ "$STATUS" = "200" ] || exit 1
+          [ "$EDGE_STATUS" = "200" ] || exit 1
 
   # ──────────────────────────────────────────────────────────────────────────
   deploy-prod:
@@ -145,7 +149,7 @@ jobs:
       - name: Build frontend (prod)
         run: npm --workspace=frontend run build
         env:
-          VITE_API_URL: ${{ secrets.VITE_API_URL_PROD }}
+          VITE_API_URL: /api
           VITE_USER_POOL_ID: ${{ secrets.VITE_USER_POOL_ID_PROD }}
           VITE_USER_POOL_CLIENT_ID: ${{ secrets.VITE_USER_POOL_CLIENT_ID_PROD }}
           VITE_AWS_REGION: ${{ env.AWS_REGION }}
@@ -168,6 +172,10 @@ jobs:
       - name: Smoke test prod
         run: |
           API_URL=$(jq -r '."Formaton-Api-prod".ApiUrl' cdk-outputs-prod.json)
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}workshops?limit=1")
-          echo "GET /workshops → HTTP $STATUS"
+          FRONT_URL=$(jq -r '."Formaton-Front-prod".DistributionUrl' cdk-outputs-prod.json)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${API_URL}healthz")
+          EDGE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${FRONT_URL}/api/healthz")
+          echo "GET ${API_URL}healthz → HTTP $STATUS"
+          echo "GET ${FRONT_URL}/api/healthz → HTTP $EDGE_STATUS"
           [ "$STATUS" = "200" ] || exit 1
+          [ "$EDGE_STATUS" = "200" ] || exit 1

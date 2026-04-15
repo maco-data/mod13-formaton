@@ -59,7 +59,7 @@ Usuario (browser)
 ### ApiStack (`infra/lib/stacks/api-stack.ts`)
 - **API Gateway REST** con stage por entorno
 - **Cognito Authorizer** en todas las rutas protegidas
-- **Lambdas Node.js 20.x** con X-Ray, reserva de concurrencia, DLQ
+- **Lambdas Node.js 20.x** con alias `live`, X-Ray, reserva de concurrencia y despliegue progresivo con CodeDeploy
 - **Eventos de dominio** publicados en EventBridge (`workshop.created`, `student.registered`)
 - **IAM least-privilege**: cada Lambda solo accede a lo que necesita
 - **CORS**: configurado por dominio
@@ -67,9 +67,10 @@ Usuario (browser)
 ### FrontStack (`infra/lib/stacks/front-stack.ts`)
 - **S3**: hosting privado (sin static website endpoint)
 - **CloudFront OAC**: acceso seguro al bucket
-- **Behaviors**: `/api/*` → API Gateway, `/*` → S3
+- **Behaviors**: `/api/*` → API Gateway con reescritura de path y `/*` → S3
 - **SPA fallback**: 403/404 → `index.html`
 - **ACM**: certificado TLS en `us-east-1`
+- **WAF v2** en prod con reglas AWS managed + rate limiting por IP
 - **Despliegue dev**: frontend activo en CloudFront
 
 ### ObservabilityStack (`infra/lib/stacks/observability-stack.ts`)
@@ -84,7 +85,7 @@ Usuario (browser)
 
 | Capa | Mecanismo |
 |------|-----------|
-| Red | CloudFront WAF (rate-based + SQLi/XSS rules) en prod |
+| Red | CloudFront WAF v2 en prod (rate-based + managed rules de IP reputation, common, bad inputs y SQLi) |
 | Autenticación | Cognito JWT (SRP flow) |
 | Autorización | API GW Cognito Authorizer + grupos Cognito en handler |
 | Datos en tránsito | TLS 1.2+ obligatorio (CloudFront + API GW) |

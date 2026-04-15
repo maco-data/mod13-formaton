@@ -9,6 +9,8 @@ export interface EnvConfig {
   apiThrottlingBurstLimit: number;
   enableWaf: boolean;
   enableXRay: boolean;
+  enableBlueGreenDeployments: boolean;
+  wafRateLimit: number;
   dynamoTableClass: 'STANDARD' | 'STANDARD_INFREQUENT_ACCESS';
 }
 
@@ -20,6 +22,8 @@ const defaults: Omit<EnvConfig, 'envName'> = {
   apiThrottlingBurstLimit: 50,
   enableWaf: false,
   enableXRay: true,
+  enableBlueGreenDeployments: true,
+  wafRateLimit: 1000,
   dynamoTableClass: 'STANDARD',
 };
 
@@ -40,6 +44,7 @@ const configs: Record<string, EnvConfig> = {
     apiThrottlingRateLimit: 1000,
     apiThrottlingBurstLimit: 500,
     enableWaf: true,
+    wafRateLimit: 2000,
     dynamoTableClass: 'STANDARD',
   },
 };

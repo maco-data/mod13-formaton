@@ -7,6 +7,8 @@ import * as events from 'aws-cdk-lib/aws-events';
 import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
 import { Construct } from 'constructs';
 import { EnvConfig } from '../../config/environments';
 import { FormatonLambda } from '../constructs/lambda-construct';
@@ -24,6 +26,7 @@ export class ApiStack extends cdk.Stack {
   public readonly api: apigateway.RestApi;
   public readonly apiUrl: string;
   public readonly lambdaFunctions: lambda.Function[];
+  public readonly lambdaAliases: lambda.Alias[];
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -47,7 +50,14 @@ export class ApiStack extends cdk.Stack {
         environment: sharedEnv,
         reservedConcurrentExecutions: props.config.lambdaReservedConcurrency,
         enableXRay: props.config.enableXRay,
-      }).fn;
+        enableDeploymentAlias: props.config.enableBlueGreenDeployments,
+      });
+
+    const integrationTarget = (handler: FormatonLambda): lambda.IFunction => handler.liveAlias ?? handler.fn;
+
+    const deploymentConfig = props.config.envName === 'prod'
+      ? codedeploy.LambdaDeploymentConfig.LINEAR_10PERCENT_EVERY_1MINUTE
+      : codedeploy.LambdaDeploymentConfig.CANARY_10PERCENT_5MINUTES;
 
     // ── Handlers ──────────────────────────────────────────────────────────
     const listWorkshops       = fn('ListWorkshops',       'handlers/workshops/list.handler',             'GET /workshops — listado paginado');
@@ -64,31 +74,73 @@ export class ApiStack extends cdk.Stack {
     const listUsers           = fn('ListUsers',           'handlers/users/list.handler',                 'GET /users (admin)');
     const getUser             = fn('GetUser',             'handlers/users/get.handler',                  'GET /users/{id}');
     const createUser          = fn('CreateUser',          'handlers/users/create.handler',               'POST /users (admin)');
+    const healthz             = fn('Healthz',             'handlers/healthz/get.handler',                'GET /healthz');
     const sendConfirmation    = fn('SendConfirmation',    'handlers/notifications/send-confirmation.handler', 'Notificación de inscripción');
     const sendReminder        = fn('SendReminder',        'handlers/notifications/send-reminder.handler',    'Recordatorio 24h antes');
+    const sendCancellation    = fn('SendCancellation',    'handlers/notifications/send-cancellation.handler', 'Notificación de cancelación');
+    const dispatchReminders   = fn('DispatchReminders',   'handlers/notifications/dispatch-reminders.handler', 'Despacha recordatorios 24h');
 
-    this.lambdaFunctions = [
+    const handlers = [
+      healthz,
       listWorkshops, getWorkshop, createWorkshop, updateWorkshop, deleteWorkshop,
       registerStudent, unregisterStudent, listRegistrations,
       issueCert, listCerts, verifyCert,
       listUsers, getUser, createUser,
-      sendConfirmation, sendReminder,
+      sendConfirmation, sendReminder, sendCancellation, dispatchReminders,
     ];
 
+    this.lambdaFunctions = handlers.map(handler => handler.fn);
+    this.lambdaAliases = handlers
+      .map(handler => handler.liveAlias)
+      .filter((alias): alias is lambda.Alias => Boolean(alias));
+
     // ── IAM permissions ───────────────────────────────────────────────────
-    const tableReadFns  = [listWorkshops, getWorkshop, listRegistrations, listCerts, verifyCert, registerStudent, listUsers, getUser];
-    const tableWriteFns = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, createUser];
-    const eventFns      = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert];
+    const tableReadFns  = [listWorkshops, getWorkshop, listRegistrations, listCerts, verifyCert, registerStudent, listUsers, getUser, issueCert, deleteWorkshop, dispatchReminders].map(handler => handler.fn);
+    const tableWriteFns = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, createUser, dispatchReminders].map(handler => handler.fn);
+    const eventFns      = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, dispatchReminders].map(handler => handler.fn);
 
     tableReadFns.forEach(f  => props.table.grantReadData(f));
     tableWriteFns.forEach(f => props.table.grantWriteData(f));
     eventFns.forEach(f      => props.eventBus.grantPutEventsTo(f));
-    [issueCert, listCerts].forEach(f => props.evidencesBucket.grantReadWrite(f));
-    [sendConfirmation, sendReminder].forEach(f => {
+    [issueCert.fn, listCerts.fn].forEach(f => props.evidencesBucket.grantReadWrite(f));
+    [sendConfirmation.fn, sendReminder.fn, sendCancellation.fn].forEach(f => {
+      props.table.grantReadData(f);
       f.addToRolePolicy(new iam.PolicyStatement({
         actions: ['ses:SendEmail', 'ses:SendRawEmail'],
         resources: ['*'],
       }));
+    });
+
+    handlers.forEach(handler => {
+      if (!handler.liveAlias) return;
+
+      const alarmBaseId = handler.fn.functionName
+        .replace(/[^A-Za-z0-9]/g, '')
+        .slice(-48) || handler.node.id;
+
+      const deploymentAlarm = new cloudwatch.Alarm(this, `${alarmBaseId}DeploymentAlarm`, {
+        metric: handler.liveAlias.metricErrors({
+          period: cdk.Duration.minutes(1),
+          statistic: 'Sum',
+        }),
+        threshold: 1,
+        evaluationPeriods: 1,
+        datapointsToAlarm: 1,
+        comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_OR_EQUAL_TO_THRESHOLD,
+        treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+        alarmDescription: `Rollback automático si ${handler.fn.functionName} falla durante el cambio de tráfico`,
+      });
+
+      new codedeploy.LambdaDeploymentGroup(this, `${alarmBaseId}DeploymentGroup`, {
+        alias: handler.liveAlias,
+        deploymentConfig,
+        alarms: [deploymentAlarm],
+        autoRollback: {
+          deploymentInAlarm: true,
+          failedDeployment: true,
+          stoppedDeployment: true,
+        },
+      });
     });
 
     // ── EventBridge rules ─────────────────────────────────────────────────
@@ -99,7 +151,33 @@ export class ApiStack extends cdk.Stack {
         source: ['formaton.app'],
         detailType: ['student.registered'],
       },
-      targets: [new targets.LambdaFunction(sendConfirmation)],
+      targets: [new targets.LambdaFunction(integrationTarget(sendConfirmation))],
+    });
+
+    new events.Rule(this, 'Reminder24hRule', {
+      eventBus: props.eventBus,
+      description: 'Dispara los recordatorios 24h antes del taller',
+      eventPattern: {
+        source: ['formaton.app'],
+        detailType: ['reminder.24h'],
+      },
+      targets: [new targets.LambdaFunction(integrationTarget(sendReminder))],
+    });
+
+    new events.Rule(this, 'WorkshopCancelledRule', {
+      eventBus: props.eventBus,
+      description: 'Dispara la notificación a inscritos cuando se cancela una formación',
+      eventPattern: {
+        source: ['formaton.app'],
+        detailType: ['workshop.cancelled'],
+      },
+      targets: [new targets.LambdaFunction(integrationTarget(sendCancellation))],
+    });
+
+    new events.Rule(this, 'DispatchRemindersScheduleRule', {
+      description: 'Escanea cada hora los talleres que requieren recordatorio 24h antes',
+      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
+      targets: [new targets.LambdaFunction(integrationTarget(dispatchReminders))],
     });
 
     // ── API Gateway ───────────────────────────────────────────────────────
@@ -116,9 +194,11 @@ export class ApiStack extends cdk.Stack {
         metricsEnabled: true,
       },
       defaultCorsPreflightOptions: {
-        allowOrigins: props.config.domainName
-          ? [`https://${props.config.domainName}`]
-          : ['http://localhost:5173'],
+        allowOrigins: props.config.envName === 'prod'
+          ? (props.config.domainName
+              ? [`https://${props.config.domainName}`]
+              : ['http://localhost:5173'])
+          : apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
         allowHeaders: ['Content-Type', 'Authorization'],
       },
@@ -139,6 +219,55 @@ export class ApiStack extends cdk.Stack {
       authorizationType: apigateway.AuthorizationType.NONE,
     };
 
+    const workshopRequestProperties: Record<string, apigateway.JsonSchema> = {
+      name: { type: apigateway.JsonSchemaType.STRING, minLength: 3 },
+      description: { type: apigateway.JsonSchemaType.STRING },
+      category: { type: apigateway.JsonSchemaType.STRING, minLength: 2 },
+      mode: { type: apigateway.JsonSchemaType.STRING, enum: ['presencial', 'online', 'hibrida'] },
+      location: { type: apigateway.JsonSchemaType.STRING },
+      startAt: { type: apigateway.JsonSchemaType.STRING },
+      endAt: { type: apigateway.JsonSchemaType.STRING },
+      durationHours: { type: apigateway.JsonSchemaType.NUMBER, minimum: 1 },
+      capacity: { type: apigateway.JsonSchemaType.NUMBER, minimum: 1 },
+      generatesCert: { type: apigateway.JsonSchemaType.BOOLEAN },
+      certNorm: { type: apigateway.JsonSchemaType.STRING },
+    };
+
+    const workshopModel = new apigateway.Model(this, 'WorkshopRequestModel', {
+      restApi: this.api,
+      contentType: 'application/json',
+      modelName: `WorkshopRequest${props.config.envName}`,
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'WorkshopRequest',
+        type: apigateway.JsonSchemaType.OBJECT,
+        required: ['name', 'category', 'mode', 'startAt', 'endAt', 'durationHours', 'capacity'],
+        additionalProperties: false,
+        properties: workshopRequestProperties,
+      },
+    });
+
+    const workshopPatchModel = new apigateway.Model(this, 'WorkshopPatchRequestModel', {
+      restApi: this.api,
+      contentType: 'application/json',
+      modelName: `WorkshopPatchRequest${props.config.envName}`,
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'WorkshopPatchRequest',
+        type: apigateway.JsonSchemaType.OBJECT,
+        minProperties: 1,
+        additionalProperties: false,
+        properties: workshopRequestProperties,
+      },
+    });
+
+    const requestValidator = new apigateway.RequestValidator(this, 'WorkshopRequestValidator', {
+      restApi: this.api,
+      requestValidatorName: `formaton-workshop-validator-${props.config.envName}`,
+      validateRequestBody: true,
+      validateRequestParameters: true,
+    });
+
     // ── Routes ────────────────────────────────────────────────────────────
     // GET  /workshops              — público, cacheable
     // GET  /workshops/{id}         — público
@@ -150,34 +279,44 @@ export class ApiStack extends cdk.Stack {
     // GET  /workshops/{id}/registrations — admin
 
     const workshops = this.api.root.addResource('workshops');
-    workshops.addMethod('GET',  new apigateway.LambdaIntegration(listWorkshops),  publicOptions);
-    workshops.addMethod('POST', new apigateway.LambdaIntegration(createWorkshop), authOptions);
+    const health = this.api.root.addResource('healthz');
+    health.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(healthz)), publicOptions);
+    workshops.addMethod('GET',  new apigateway.LambdaIntegration(integrationTarget(listWorkshops)),  publicOptions);
+    workshops.addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(createWorkshop)), {
+      ...authOptions,
+      requestValidator,
+      requestModels: { 'application/json': workshopModel },
+    });
 
     const workshop = workshops.addResource('{id}');
-    workshop.addMethod('GET',    new apigateway.LambdaIntegration(getWorkshop),    publicOptions);
-    workshop.addMethod('PUT',    new apigateway.LambdaIntegration(updateWorkshop), authOptions);
-    workshop.addMethod('DELETE', new apigateway.LambdaIntegration(deleteWorkshop), authOptions);
+    workshop.addMethod('GET',    new apigateway.LambdaIntegration(integrationTarget(getWorkshop)),    publicOptions);
+    workshop.addMethod('PUT',    new apigateway.LambdaIntegration(integrationTarget(updateWorkshop)), {
+      ...authOptions,
+      requestValidator,
+      requestModels: { 'application/json': workshopPatchModel },
+    });
+    workshop.addMethod('DELETE', new apigateway.LambdaIntegration(integrationTarget(deleteWorkshop)), authOptions);
 
     const register = workshop.addResource('register');
-    register.addMethod('POST',   new apigateway.LambdaIntegration(registerStudent),   authOptions);
-    register.addMethod('DELETE', new apigateway.LambdaIntegration(unregisterStudent),  authOptions);
+    register.addMethod('POST',   new apigateway.LambdaIntegration(integrationTarget(registerStudent)),   authOptions);
+    register.addMethod('DELETE', new apigateway.LambdaIntegration(integrationTarget(unregisterStudent)),  authOptions);
 
     const registrations = workshop.addResource('registrations');
-    registrations.addMethod('GET', new apigateway.LambdaIntegration(listRegistrations), authOptions);
+    registrations.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(listRegistrations)), authOptions);
 
     const certs = this.api.root.addResource('certs');
-    certs.addMethod('GET', new apigateway.LambdaIntegration(listCerts), authOptions);
-    certs.addResource('issue').addMethod('POST', new apigateway.LambdaIntegration(issueCert), authOptions);
+    certs.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(listCerts)), authOptions);
+    certs.addResource('issue').addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(issueCert)), authOptions);
 
     const cert = certs.addResource('{id}');
-    cert.addResource('verify').addMethod('GET', new apigateway.LambdaIntegration(verifyCert), publicOptions);
+    cert.addResource('verify').addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(verifyCert)), publicOptions);
 
     const users = this.api.root.addResource('users');
-    users.addMethod('GET', new apigateway.LambdaIntegration(listUsers), authOptions);
-    users.addMethod('POST', new apigateway.LambdaIntegration(createUser), authOptions);
+    users.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(listUsers)), authOptions);
+    users.addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(createUser)), authOptions);
 
     const user = users.addResource('{id}');
-    user.addMethod('GET', new apigateway.LambdaIntegration(getUser), authOptions);
+    user.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(getUser)), authOptions);
 
     this.apiUrl = this.api.url;
 
