@@ -45,7 +45,7 @@
 }
 .active    { background: var(--success-light); color: #065F46; }
 .completed { background: var(--primary-light); color: var(--primary-dark); }
-.draft     { background: var(--border-light);  color: var(--text-secondary); }
+.pending   { background: var(--border-light);  color: var(--text-secondary); }
 .cancelled { background: var(--danger-light);  color: #991B1B; }
 
 .action {

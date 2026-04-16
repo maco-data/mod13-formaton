@@ -40,6 +40,12 @@
   border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
 }
+.brandIconImage {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: invert(1);
+}
 .brandName { font-size: 20px; font-weight: 700; color: white; letter-spacing: -0.3px; }
 
 .heroText h1 {

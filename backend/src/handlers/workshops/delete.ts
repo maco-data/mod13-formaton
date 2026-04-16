@@ -4,6 +4,7 @@ import { noContent, notFound, conflict } from '../../shared/utils/response';
 import { withErrorHandler } from '../../shared/middleware/error-handler';
 import { requireAdmin } from '../../shared/middleware/auth';
 import { Workshop } from '../../shared/models/workshop.model';
+import { publishWorkshopCancelled } from '../../events/workshop-cancelled';
 
 /**
  * DELETE /workshops/{id}  (admin)
@@ -21,5 +22,6 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
   if (workshop.status === 'completed') return conflict('No se puede cancelar un taller completado');
 
   await updateItem(`WORKSHOP#${id}`, 'META', { status: 'cancelled' });
+  await publishWorkshopCancelled({ ...workshop, status: 'cancelled' });
   return noContent();
 });

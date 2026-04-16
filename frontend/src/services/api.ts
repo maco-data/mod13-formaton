@@ -23,7 +23,7 @@ async function parseResponseBody(response: Response): Promise<unknown> {
   if (response.status === 204) return undefined;
 
   const contentType = response.headers.get('content-type') ?? '';
-  const isJson = contentType.includes('application/json');
+  const isJson = contentType.includes('json');
 
   if (isJson) {
     try {

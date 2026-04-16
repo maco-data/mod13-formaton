@@ -29,9 +29,7 @@ export default function Login() {
       <div className={styles.left}>
         <div className={styles.brand}>
           <div className={styles.brandIcon}>
-            <svg viewBox="0 0 24 24" fill="white" width="28" height="28">
-              <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6L23 9zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
-            </svg>
+            <img src="/favicon.svg" alt="Formaton" className={styles.brandIconImage} />
           </div>
           <span className={styles.brandName}>Formaton</span>
         </div>

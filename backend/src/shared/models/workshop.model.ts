@@ -19,6 +19,7 @@ export interface Workshop {
   generatesCert: boolean;
   certNorm?: string;    // Ej: "ISO 45001", "Fundae", "Ley 31/1995"
   instructorId?: string;
+  reminder24hSentAt?: string;
   createdAt: string;
   updatedAt: string;
   // GSI keys

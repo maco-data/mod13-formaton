@@ -14,7 +14,7 @@ export function useParticipants() {
     setState(s => ({ ...s, loading: true, error: null }));
     try {
       const res = await participantsService.list();
-      setState({ items: res.items, loading: false, error: null });
+      setState({ items: Array.isArray(res?.items) ? res.items : [], loading: false, error: null });
     } catch (err) {
       setState(s => ({ ...s, loading: false, error: (err as Error).message }));
     }

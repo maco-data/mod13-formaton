@@ -37,12 +37,12 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   in_progress: { label: 'En curso',   cls: 'active' },
   completed:   { label: 'Completada', cls: 'completed' },
   cancelled:   { label: 'Cancelada',  cls: 'cancelled' },
-  draft:       { label: 'Borrador',   cls: 'draft' },
+  draft:       { label: 'Pendiente',  cls: 'pending' },
 };
 
 export default function CourseCard({ course, onClick, actionLabel, actionDisabled = false, onAction }: Props) {
   const theme = CATEGORY_COLORS[course.category] ?? CATEGORY_COLORS['default'];
-  const status = STATUS_LABELS[course.status] ?? { label: course.status, cls: 'draft' };
+  const status = STATUS_LABELS[course.status] ?? { label: course.status, cls: 'pending' };
   const pct = course.capacity > 0 ? Math.round((course.enrolledCount / course.capacity) * 100) : 0;
 
   return (

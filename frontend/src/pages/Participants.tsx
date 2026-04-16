@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Table, { Column } from '../components/Table';
 import { useToast } from '../store/ui.store';
 import { useParticipants } from '../hooks/useParticipants';
-import type { CreateParticipantPayload, Participant } from '../services/participants.service';
+import participantsService, { type CreateParticipantPayload, type Participant } from '../services/participants.service';
 import { useAuth } from '../hooks/useAuth';
 import styles from './Participants.module.css';
 
@@ -43,6 +43,8 @@ export default function Participants() {
   const [dept, setDept]         = useState('Todos');
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [form, setForm] = useState<CreateParticipantPayload>({
     email: '',
     givenName: '',
@@ -175,6 +177,30 @@ export default function Participants() {
     }
   };
 
+  const formatDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
+
+  const openParticipantDetail = async (participantId: string) => {
+    try {
+      setDetailLoading(true);
+      const participant = await participantsService.get(participantId);
+      setSelectedParticipant(participant);
+    } catch (err) {
+      showToast((err as Error).message);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.tableCard}>
@@ -226,7 +252,7 @@ export default function Participants() {
           rows={filtered}
           loading={loading}
           emptyMessage={loading ? 'Cargando participantes...' : 'No hay participantes'}
-          onRowClick={(participant) => showToast(`Abriendo perfil: ${participant.name}`)}
+          onRowClick={(participant) => void openParticipantDetail(participant.id)}
         />
       </div>
 
@@ -281,6 +307,55 @@ export default function Participants() {
                 {submitting ? 'Guardando...' : 'Guardar participante'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {(detailLoading || selectedParticipant) && (
+        <div className={styles.overlay} onClick={(event) => {
+          if (event.target === event.currentTarget) setSelectedParticipant(null);
+        }}>
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <h2>{detailLoading ? 'Cargando participante...' : 'Detalle del participante'}</h2>
+              <button className={styles.closeBtn} onClick={() => setSelectedParticipant(null)}>✕</button>
+            </div>
+
+            {!detailLoading && selectedParticipant ? (
+              <div className={styles.modalBody}>
+                <div className={styles.formRow}>
+                  <div className={styles.formGroup}>
+                    <label>Nombre completo</label>
+                    <div className={styles.detailBox}>{selectedParticipant.fullName || `${selectedParticipant.givenName} ${selectedParticipant.familyName}`.trim()}</div>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Rol</label>
+                    <div className={styles.detailBox}>{selectedParticipant.role}</div>
+                  </div>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Email</label>
+                  <div className={styles.detailBox}>{selectedParticipant.email}</div>
+                </div>
+
+                <div className={styles.formRow}>
+                  <div className={styles.formGroup}>
+                    <label>Departamento</label>
+                    <div className={styles.detailBox}>{selectedParticipant.department || 'Sin departamento'}</div>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Estado</label>
+                    <div className={styles.detailBox}>{selectedParticipant.active ? 'Activo' : 'Inactivo'}</div>
+                  </div>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Alta en plataforma</label>
+                  <div className={styles.detailBox}>{formatDate(selectedParticipant.createdAt)}</div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

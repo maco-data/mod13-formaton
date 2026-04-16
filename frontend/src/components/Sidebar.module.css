@@ -29,6 +29,12 @@
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
+.logoIconImage {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  filter: invert(1);
+}
 .logoText {
   font-size: 17px; font-weight: 700; color: white; letter-spacing: -0.3px;
 }

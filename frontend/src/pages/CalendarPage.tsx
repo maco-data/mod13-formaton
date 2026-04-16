@@ -1,27 +1,124 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Calendar from '../components/Calendar';
 import { useToast } from '../store/ui.store';
+import { useCourses } from '../hooks/useCourses';
+import type { Workshop } from '../services/courses.service';
 import styles from './CalendarPage.module.css';
 
-const EVENTS = [
-  { day:13, title:'PRL Básico',             time:'09:00–13:00', enrolled:18, color:'var(--primary)',  mode:'Presencial' },
-  { day:14, title:'Excel Avanzado',          time:'16:00–18:00', enrolled:12, color:'var(--accent)',   mode:'Online' },
-  { day:16, title:'Liderazgo y Equipos',     time:'10:00–14:00', enrolled:24, color:'var(--success)',  mode:'Híbrida' },
-  { day:21, title:'ISO 45001 Auditor',       time:'09:00–18:00', enrolled: 6, color:'var(--warning)',  mode:'Presencial' },
-  { day:24, title:'Onboarding Corporativo',  time:'10:00–13:00', enrolled: 8, color:'var(--primary)',  mode:'Online' },
-  { day:28, title:'Comunicación Efectiva',   time:'09:00–17:00', enrolled:15, color:'var(--danger)',   mode:'Presencial' },
-];
+interface CalendarSession {
+  id: string;
+  day: number;
+  title: string;
+  time: string;
+  enrolled: number;
+  color: string;
+  mode: string;
+  location?: string;
+  startAt: string;
+  endAt: string;
+}
+
+const MODE_LABELS: Record<Workshop['mode'], string> = {
+  presencial: 'Presencial',
+  online: 'Online',
+  hibrida: 'Híbrida',
+};
+
+const MODE_COLORS: Record<Workshop['mode'], string> = {
+  presencial: 'var(--primary)',
+  online: 'var(--accent)',
+  hibrida: 'var(--success)',
+};
+
+function isValidDate(value: string) {
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+}
+
+function formatMonthLabel(year: number, month: number) {
+  return new Intl.DateTimeFormat('es-ES', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(year, month, 1));
+}
+
+function formatSessionTime(startAt: string, endAt: string) {
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return startAt;
+
+  const sameDay = start.toDateString() === end.toDateString();
+  const formatter = new Intl.DateTimeFormat('es-ES', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  if (sameDay) return `${formatter.format(start)}–${formatter.format(end)}`;
+
+  return new Intl.DateTimeFormat('es-ES', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(start);
+}
 
 export default function CalendarPage() {
-  const [selected, setSelected]   = useState<typeof EVENTS[0] | null>(null);
+  const now = new Date();
+  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth());
+  const [selected, setSelected] = useState<CalendarSession | null>(null);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const { courses, loading, error, reload } = useCourses();
+
+  const monthSessions = useMemo(
+    () =>
+      courses
+        .filter((course) => {
+          if (!isValidDate(course.startAt)) return false;
+          if (course.status === 'cancelled') return false;
+          const start = new Date(course.startAt);
+          return start.getFullYear() === currentYear && start.getMonth() === currentMonth;
+        })
+        .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
+        .map<CalendarSession>((course) => ({
+          id: course.id,
+          day: new Date(course.startAt).getDate(),
+          title: course.name,
+          time: formatSessionTime(course.startAt, course.endAt),
+          enrolled: course.enrolledCount,
+          color: MODE_COLORS[course.mode] ?? 'var(--primary)',
+          mode: MODE_LABELS[course.mode] ?? course.mode,
+          location: course.location,
+          startAt: course.startAt,
+          endAt: course.endAt,
+        })),
+    [courses, currentMonth, currentYear]
+  );
+
+  const calendarEvents = useMemo(
+    () => monthSessions.map((session) => ({
+      day: session.day,
+      title: session.title,
+      color: session.color,
+    })),
+    [monthSessions]
+  );
+
+  const selectedStillVisible = selected
+    ? monthSessions.find((session) => session.id === selected.id) ?? null
+    : null;
+  const activeSelection = selectedStillVisible ?? selected;
 
   const handleDayClick = (day: number) => {
-    const found = EVENTS.find(e => e.day === day);
+    const found = monthSessions.find((session) => session.day === day);
     if (found) setSelected(found);
-    else { setSelected(null); showToast(`Día ${day} — sin sesiones`); }
+    else {
+      setSelected(null);
+      showToast(`Día ${day} — sin sesiones programadas`);
+    }
   };
 
   return (
@@ -30,14 +127,20 @@ export default function CalendarPage() {
         {/* Big calendar */}
         <div className={styles.card}>
           <div className={styles.cardHeader}>
-            <div className={styles.cardTitle}>Abril 2026</div>
+            <div className={styles.cardTitle}>{formatMonthLabel(currentYear, currentMonth)}</div>
             <button className={styles.btnPrimary} onClick={() => navigate('/courses?create=1')}>+ Nueva sesión</button>
           </div>
           <div className={styles.calBody}>
             <Calendar
-              year={2026} month={3}
-              events={EVENTS.map(e => ({ day: e.day, title: e.title, color: e.color }))}
+              year={currentYear}
+              month={currentMonth}
+              events={calendarEvents}
               onDayClick={handleDayClick}
+              onMonthChange={(year, month) => {
+                setCurrentYear(year);
+                setCurrentMonth(month);
+                setSelected(null);
+              }}
               size="full"
             />
           </div>
@@ -46,19 +149,22 @@ export default function CalendarPage() {
         {/* Sidebar */}
         <div className={styles.sidebar}>
           {/* Selected event detail */}
-          {selected && (
-            <div className={styles.eventDetail} style={{ borderLeft: `4px solid ${selected.color}` }}>
-              <div className={styles.eventDetailTitle}>{selected.title}</div>
+          {activeSelection && (
+            <div className={styles.eventDetail} style={{ borderLeft: `4px solid ${activeSelection.color}` }}>
+              <div className={styles.eventDetailTitle}>{activeSelection.title}</div>
               <div className={styles.eventDetailMeta}>
-                <span>📅 Abr {selected.day}</span>
-                <span>🕐 {selected.time}</span>
+                <span>📅 {new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short' }).format(new Date(activeSelection.startAt))}</span>
+                <span>🕐 {activeSelection.time}</span>
               </div>
               <div className={styles.eventDetailMeta}>
-                <span>📍 {selected.mode}</span>
-                <span>👥 {selected.enrolled} inscritos</span>
+                <span>📍 {activeSelection.mode}</span>
+                <span>👥 {activeSelection.enrolled} inscritos</span>
               </div>
+              {activeSelection.location ? (
+                <div className={styles.eventDetailLocation}>{activeSelection.location}</div>
+              ) : null}
               <div className={styles.eventDetailActions}>
-                <button className={styles.btnSm} onClick={() => showToast('Abriendo detalle')}>Ver detalle</button>
+                <button className={styles.btnSm} onClick={() => navigate(`/courses?courseId=${activeSelection.id}`)}>Ver detalle</button>
                 <button className={styles.btnSmOutline} onClick={() => setSelected(null)}>Cerrar</button>
               </div>
             </div>
@@ -68,13 +174,28 @@ export default function CalendarPage() {
           <div className={styles.card}>
             <div className={styles.cardHeader}><div className={styles.cardTitle}>Agenda del mes</div></div>
             <div className={styles.agendaList}>
-              {EVENTS.map(ev => (
+              {loading && (
+                <div className={styles.emptyState}>Cargando sesiones del backend...</div>
+              )}
+              {!loading && error && (
+                <div className={styles.emptyState}>
+                  <div>{error}</div>
+                  <button className={styles.btnSmOutline} onClick={() => void reload()}>Reintentar</button>
+                </div>
+              )}
+              {!loading && !error && monthSessions.length === 0 && (
+                <div className={styles.emptyState}>
+                  <div>No hay sesiones en este mes.</div>
+                  <button className={styles.btnSmOutline} onClick={() => navigate('/courses?create=1')}>Crear una sesión</button>
+                </div>
+              )}
+              {!loading && !error && monthSessions.map(ev => (
                 <div
-                  key={ev.day}
-                  className={`${styles.agendaItem} ${selected?.day === ev.day ? styles.agendaActive : ''}`}
+                  key={ev.id}
+                  className={`${styles.agendaItem} ${activeSelection?.id === ev.id ? styles.agendaActive : ''}`}
                   onClick={() => setSelected(ev)}
                 >
-                  <div className={styles.agendaDate} style={{ background: selected?.day === ev.day ? ev.color : 'var(--primary-light)', color: selected?.day === ev.day ? 'white' : 'var(--primary)' }}>
+                  <div className={styles.agendaDate} style={{ background: activeSelection?.id === ev.id ? ev.color : 'var(--primary-light)', color: activeSelection?.id === ev.id ? 'white' : 'var(--primary)' }}>
                     {ev.day}
                   </div>
                   <div className={styles.agendaInfo}>

@@ -5,14 +5,24 @@ import Modal from '../components/Modal';
 import { useToast } from '../store/ui.store';
 import { useCourses } from '../hooks/useCourses';
 import { useAuth } from '../hooks/useAuth';
+import { useCerts } from '../hooks/useCerts';
+import participantsService from '../services/participants.service';
 import type { CreateWorkshopPayload, Workshop } from '../services/courses.service';
 import coursesService from '../services/courses.service';
 import styles from './Courses.module.css';
 
+interface RegistrationItem {
+  userId: string;
+  status: string;
+  registeredAt: string;
+  certIssued?: boolean;
+  userName?: string;
+  userEmail?: string;
+}
+
 const FILTERS = [
   { key: 'all', label: 'Todas' },
   { key: 'scheduled', label: 'Activas' },
-  { key: 'draft', label: 'Borrador' },
   { key: 'completed', label: 'Completadas' },
 ] as const;
 
@@ -27,15 +37,21 @@ export default function Courses() {
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch]       = useState('');
   const [registeringId, setRegisteringId] = useState<string | null>(null);
+  const [selectedCourse, setSelectedCourse] = useState<Workshop | null>(null);
+  const [registrations, setRegistrations] = useState<RegistrationItem[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [issuingCertFor, setIssuingCertFor] = useState<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { showToast }             = useToast();
   const { user, isAdmin }         = useAuth();
-  const { courses, loading, error, create, reload } = useCourses(
+  const { issue: issueCert }      = useCerts();
+  const { courses, loading, error, create, remove, reload } = useCourses(
     filter === 'all' ? undefined : { status: filter }
   );
+  const safeCourses = Array.isArray(courses) ? courses : [];
 
-  const visible = courses
+  const visible = safeCourses
     .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()));
 
   const handleCreate = async (payload: CreateWorkshopPayload) => {
@@ -60,6 +76,98 @@ export default function Courses() {
     }
   };
 
+  const openCourseDetail = async (course: Workshop) => {
+    setSelectedCourse(course);
+
+    if (!isAdmin) {
+      setRegistrations([]);
+      return;
+    }
+
+    try {
+      setDetailLoading(true);
+      const response = await coursesService.getRegistrations(course.id);
+      const rawItems = Array.isArray(response?.items) ? response.items as RegistrationItem[] : [];
+      const hydratedItems = await Promise.all(
+        rawItems.map(async (item) => {
+          try {
+            const participant = await participantsService.get(item.userId);
+            return {
+              ...item,
+              userName: participant.fullName || `${participant.givenName} ${participant.familyName}`.trim(),
+              userEmail: participant.email,
+            };
+          } catch {
+            return item;
+          }
+        })
+      );
+      setRegistrations(hydratedItems);
+    } catch (err) {
+      setRegistrations([]);
+      showToast((err as Error).message);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeCourseDetail = () => {
+    setSelectedCourse(null);
+    setRegistrations([]);
+    setDetailLoading(false);
+    setIssuingCertFor(null);
+  };
+
+  const formatDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat('es-ES', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
+
+  const handleIssueCert = async (registration: RegistrationItem) => {
+    if (!selectedCourse) return;
+
+    try {
+      setIssuingCertFor(registration.userId);
+      await issueCert({
+        userId: registration.userId,
+        workshopId: selectedCourse.id,
+      });
+      setRegistrations((current) =>
+        current.map((item) =>
+          item.userId === registration.userId
+            ? { ...item, certIssued: true }
+            : item
+        )
+      );
+      showToast('Certificado emitido correctamente');
+    } catch (err) {
+      showToast((err as Error).message);
+    } finally {
+      setIssuingCertFor(null);
+    }
+  };
+
+  const handleDeleteCourse = async () => {
+    if (!selectedCourse) return;
+    const confirmed = window.confirm(`Se cancelará la formación "${selectedCourse.name}" y se notificará a los inscritos. ¿Deseas continuar?`);
+    if (!confirmed) return;
+
+    try {
+      await remove(selectedCourse.id);
+      showToast('Formación cancelada y notificación en proceso');
+      closeCourseDetail();
+    } catch (err) {
+      showToast((err as Error).message);
+    }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('create') === '1') {
@@ -73,6 +181,19 @@ export default function Courses() {
     }
   }, [isAdmin, location.pathname, location.search, navigate, showToast]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const requestedCourseId = params.get('courseId');
+    if (!requestedCourseId || safeCourses.length === 0) return;
+
+    const requestedCourse = safeCourses.find((course) => course.id === requestedCourseId);
+    if (!requestedCourse) return;
+
+    void openCourseDetail(requestedCourse);
+    params.delete('courseId');
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+  }, [location.pathname, location.search, navigate, safeCourses]);
+
   return (
     <div className={styles.page}>
       <div className={styles.toolbar}>
@@ -84,7 +205,7 @@ export default function Courses() {
               onClick={() => setFilter(f.key)}
             >
               {f.label}
-              {f.key === 'all' ? ` (${courses.length})` : ''}
+              {f.key === 'all' ? ` (${safeCourses.length})` : ''}
             </button>
           ))}
         </div>
@@ -136,7 +257,7 @@ export default function Courses() {
             <CourseCard
               key={c.id}
               course={{ ...c, mode: formatMode(c.mode) }}
-              onClick={() => showToast(`Abriendo: ${c.name}`)}
+              onClick={() => void openCourseDetail(c)}
               actionLabel={!isAdmin && user?.role === 'student' ? 'Inscribirme' : undefined}
               actionDisabled={
                 registeringId === c.id ||
@@ -152,6 +273,101 @@ export default function Courses() {
       {isAdmin ? (
         <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleCreate} />
       ) : null}
+
+      {selectedCourse && (
+        <div className={styles.overlay} onClick={(event) => {
+          if (event.target === event.currentTarget) closeCourseDetail();
+        }}>
+          <div className={styles.detailModal}>
+            <div className={styles.detailHeader}>
+              <div>
+                <div className={styles.detailEyebrow}>{selectedCourse.category}</div>
+                <h2>{selectedCourse.name}</h2>
+              </div>
+              <div className={styles.detailHeaderActions}>
+                {isAdmin && selectedCourse.status !== 'cancelled' && selectedCourse.status !== 'completed' ? (
+                  <button className={styles.deleteBtn} onClick={() => void handleDeleteCourse()}>
+                    Cancelar formación
+                  </button>
+                ) : null}
+                <button className={styles.closeBtn} onClick={closeCourseDetail}>✕</button>
+              </div>
+            </div>
+
+            <div className={styles.detailBody}>
+              <div className={styles.detailGrid}>
+                <div className={styles.detailCard}>
+                  <div className={styles.detailLabel}>Modalidad</div>
+                  <div className={styles.detailValue}>{formatMode(selectedCourse.mode)}</div>
+                </div>
+                <div className={styles.detailCard}>
+                  <div className={styles.detailLabel}>Fechas</div>
+                  <div className={styles.detailValue}>{formatDate(selectedCourse.startAt)}</div>
+                  <div className={styles.detailMeta}>hasta {formatDate(selectedCourse.endAt)}</div>
+                </div>
+                <div className={styles.detailCard}>
+                  <div className={styles.detailLabel}>Capacidad</div>
+                  <div className={styles.detailValue}>{selectedCourse.enrolledCount} / {selectedCourse.capacity}</div>
+                  <div className={styles.detailMeta}>inscritos</div>
+                </div>
+                <div className={styles.detailCard}>
+                  <div className={styles.detailLabel}>Certificación</div>
+                  <div className={styles.detailValue}>{selectedCourse.generatesCert ? 'Sí' : 'No'}</div>
+                  <div className={styles.detailMeta}>{selectedCourse.certNorm ?? 'Sin normativa asociada'}</div>
+                </div>
+              </div>
+
+              <div className={styles.descriptionCard}>
+                <div className={styles.detailLabel}>Descripción</div>
+                <p>{selectedCourse.description || 'Esta formación todavía no tiene descripción detallada.'}</p>
+                <div className={styles.detailMeta}>
+                  {selectedCourse.location ? `Ubicación: ${selectedCourse.location}` : 'Ubicación por definir'}
+                </div>
+              </div>
+
+              {isAdmin && (
+                <div className={styles.descriptionCard}>
+                  <div className={styles.detailLabel}>Inscripciones</div>
+                  {detailLoading ? (
+                    <p>Cargando participantes inscritos...</p>
+                  ) : registrations.length > 0 ? (
+                    <div className={styles.registrationList}>
+                      {registrations.map((registration) => (
+                        <div key={`${registration.userId}-${registration.registeredAt}`} className={styles.registrationItem}>
+                          <div>
+                            <div className={styles.registrationUser}>{registration.userName ?? registration.userId}</div>
+                            {registration.userEmail ? (
+                              <div className={styles.detailMeta}>{registration.userEmail}</div>
+                            ) : null}
+                            <div className={styles.detailMeta}>{formatDate(registration.registeredAt)}</div>
+                          </div>
+                          <div className={styles.registrationActions}>
+                            <div className={styles.registrationStatus}>
+                              {registration.status}
+                              {registration.certIssued ? ' · certificado emitido' : ''}
+                            </div>
+                            {selectedCourse.generatesCert && !registration.certIssued && registration.status === 'confirmed' ? (
+                              <button
+                                className={styles.issueBtn}
+                                onClick={() => void handleIssueCert(registration)}
+                                disabled={issuingCertFor === registration.userId}
+                              >
+                                {issuingCertFor === registration.userId ? 'Emitiendo...' : 'Emitir certificado'}
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>Aún no hay participantes inscritos en esta formación.</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
