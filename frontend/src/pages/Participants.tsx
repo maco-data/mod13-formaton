@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Table, { Column } from '../components/Table';
 import { useToast } from '../store/ui.store';
 import { useParticipants } from '../hooks/useParticipants';
-import participantsService, { type CreateParticipantPayload, type Participant } from '../services/participants.service';
+import participantsService, {
+  type CreateParticipantPayload,
+  type Participant,
+  type UpdateParticipantPayload,
+} from '../services/participants.service';
 import { useAuth } from '../hooks/useAuth';
 import styles from './Participants.module.css';
 
 const STATUS: Record<string, { label: string; cls: string }> = {
-  active:    { label: 'Activo',      cls: 'green' },
-  completed: { label: 'Administrador',  cls: 'blue' },
-  pending:   { label: 'Responsable',   cls: 'amber' },
-  inactive:  { label: 'Inactivo',    cls: 'gray' },
+  active: { label: 'Activo', cls: 'green' },
+  completed: { label: 'Administrador', cls: 'blue' },
+  pending: { label: 'Responsable', cls: 'amber' },
+  inactive: { label: 'Inactivo', cls: 'gray' },
 };
 
 interface ParticipantRow {
@@ -31,30 +35,58 @@ function getAvatarColor(id: string) {
 
 function formatCreatedAt(value: string) {
   if (!value) return 'Sin fecha';
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-
   return new Intl.DateTimeFormat('es-ES', { day: '2-digit', month: 'short', year: 'numeric' }).format(date);
 }
 
+const EMPTY_FORM: CreateParticipantPayload = {
+  email: '',
+  givenName: '',
+  familyName: '',
+  department: '',
+  role: 'student',
+};
+
 export default function Participants() {
-  const [search, setSearch]     = useState('');
-  const [dept, setDept]         = useState('Todos');
+  const [search, setSearch] = useState('');
+  const [dept, setDept] = useState('Todos');
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+  const [selfParticipant, setSelfParticipant] = useState<Participant | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [form, setForm] = useState<CreateParticipantPayload>({
-    email: '',
-    givenName: '',
-    familyName: '',
-    department: '',
-    role: 'student',
-  });
-  const { showToast }           = useToast();
-  const { isAdmin } = useAuth();
-  const { participants, loading, error, create, reload } = useParticipants();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<CreateParticipantPayload>(EMPTY_FORM);
+  const { showToast } = useToast();
+  const { isAdmin, user } = useAuth();
+  const { participants, loading, error, create, update, remove, reload } = useParticipants({ enabled: isAdmin });
+
+  const ownParticipant = useMemo(
+    () => selfParticipant ?? participants.find((participant) => participant.id === user?.sub || participant.email === user?.email) ?? null,
+    [participants, selfParticipant, user?.email, user?.sub]
+  );
+
+  useEffect(() => {
+    if (isAdmin || !user?.sub) return;
+    void participantsService
+      .get(user.sub)
+      .then(setSelfParticipant)
+      .catch(() => {
+        if (!user) return;
+        setSelfParticipant({
+          id: user.sub,
+          email: user.email,
+          givenName: user.givenName,
+          familyName: user.familyName,
+          fullName: `${user.givenName} ${user.familyName}`.trim(),
+          department: user.department ?? 'Sin departamento',
+          role: user.role,
+          active: true,
+          createdAt: new Date().toISOString(),
+        });
+      });
+  }, [isAdmin, user]);
 
   const rows: ParticipantRow[] = participants.map((participant) => {
     const name = participant.fullName || `${participant.givenName} ${participant.familyName}`.trim() || participant.email;
@@ -81,58 +113,81 @@ export default function Participants() {
   const departments = ['Todos', ...new Set(rows.map((participant) => participant.dept))];
 
   const filtered = rows
-    .filter(p => dept === 'Todos' || p.dept === dept)
-    .filter(p => !search ||
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.email.toLowerCase().includes(search.toLowerCase())
-    );
+    .filter((participant) => dept === 'Todos' || participant.dept === dept)
+    .filter((participant) => {
+      if (!search.trim()) return true;
+      const text = search.toLowerCase();
+      return participant.name.toLowerCase().includes(text) || participant.email.toLowerCase().includes(text);
+    });
 
   const columns: Column<ParticipantRow>[] = [
     {
-      key: 'name', header: 'Participante',
-      render: p => (
+      key: 'name',
+      header: 'Participante',
+      render: (participant) => (
         <div className={styles.userCell}>
-          <div className={styles.avatar} style={{ background: p.color }}>
-            {p.name.split(' ').map((part: string) => part[0]).join('').slice(0,2)}
+          <div className={styles.avatar} style={{ background: participant.color }}>
+            {participant.name.split(' ').map((part) => part[0]).join('').slice(0, 2)}
           </div>
           <div>
-            <div className={styles.userName}>{p.name}</div>
-            <div className={styles.userEmail}>{p.email}</div>
+            <div className={styles.userName}>{participant.name}</div>
+            <div className={styles.userEmail}>{participant.email}</div>
           </div>
         </div>
       ),
     },
     {
-      key: 'dept', header: 'Departamento',
-      render: p => <span className={styles.deptBadge}>{p.dept}</span>,
+      key: 'dept',
+      header: 'Departamento',
+      render: (participant) => <span className={styles.deptBadge}>{participant.dept}</span>,
     },
     {
-      key: 'role', header: 'Rol', width: '150px',
-      render: p => <span className={styles.muted}>{p.role}</span>,
+      key: 'role',
+      header: 'Rol',
+      width: '150px',
+      render: (participant) => <span className={styles.muted}>{participant.role}</span>,
     },
     {
-      key: 'status', header: 'Estado', width: '110px',
-      render: p => {
-        const s = STATUS[p.status];
-        return <span className={`${styles.badge} ${styles[s.cls]}`}>{s.label}</span>;
+      key: 'status',
+      header: 'Estado',
+      width: '110px',
+      render: (participant) => {
+        const status = STATUS[participant.status];
+        return <span className={`${styles.badge} ${styles[status.cls]}`}>{status.label}</span>;
       },
     },
     {
-      key: 'createdAt', header: 'Alta',
-      render: p => <span className={styles.muted}>{p.createdAt}</span>,
+      key: 'createdAt',
+      header: 'Alta',
+      render: (participant) => <span className={styles.muted}>{participant.createdAt}</span>,
     },
     {
-      key: 'actions', header: '', width: '80px',
-      render: p => (
-        <button
-          className={styles.btnView}
-          onClick={e => {
-            e.stopPropagation();
-            showToast(`${p.name} · ${p.email} · ${p.dept}`);
-          }}
-        >
-          Ver
-        </button>
+      key: 'actions',
+      header: '',
+      width: '150px',
+      render: (participant) => (
+        <div className={styles.eventDetailActions}>
+          <button
+            className={styles.btnView}
+            onClick={(event) => {
+              event.stopPropagation();
+              void openParticipantDetail(participant.id);
+            }}
+          >
+            Ver
+          </button>
+          <button
+            className={styles.btnView}
+            onClick={(event) => {
+              event.stopPropagation();
+              const source = participants.find((item) => item.id === participant.id);
+              if (!source) return;
+              startEditing(source);
+            }}
+          >
+            Editar
+          </button>
+        </div>
       ),
     },
   ];
@@ -143,16 +198,23 @@ export default function Participants() {
     };
 
   const resetForm = () => {
-    setForm({
-      email: '',
-      givenName: '',
-      familyName: '',
-      department: '',
-      role: 'student',
-    });
+    setForm(EMPTY_FORM);
+    setEditingId(null);
   };
 
-  const handleCreate = async () => {
+  const startEditing = (participant: Participant) => {
+    setEditingId(participant.id);
+    setForm({
+      email: participant.email,
+      givenName: participant.givenName,
+      familyName: participant.familyName,
+      department: participant.department,
+      role: participant.role,
+    });
+    setModalOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!form.email || !form.givenName || !form.familyName || !form.department) {
       showToast('Completa nombre, apellidos, email y departamento');
       return;
@@ -160,20 +222,50 @@ export default function Participants() {
 
     try {
       setSubmitting(true);
-      await create({
-        ...form,
-        email: form.email.trim(),
-        givenName: form.givenName.trim(),
-        familyName: form.familyName.trim(),
-        department: form.department.trim(),
-      });
+
+      if (editingId) {
+        const payload: UpdateParticipantPayload = {
+          email: form.email.trim(),
+          givenName: form.givenName.trim(),
+          familyName: form.familyName.trim(),
+          department: form.department.trim(),
+          role: form.role,
+        };
+        await update(editingId, payload);
+        showToast('Participante actualizado correctamente');
+      } else {
+        await create({
+          ...form,
+          email: form.email.trim(),
+          givenName: form.givenName.trim(),
+          familyName: form.familyName.trim(),
+          department: form.department.trim(),
+        });
+        showToast('Participante creado correctamente');
+      }
+
       resetForm();
       setModalOpen(false);
-      showToast('Participante creado correctamente');
     } catch (err) {
       showToast((err as Error).message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeactivate = async () => {
+    if (!selectedParticipant || !isAdmin) return;
+    if (!selectedParticipant.active) return;
+
+    const confirmed = window.confirm(`Se desactivará a ${selectedParticipant.fullName || selectedParticipant.email}. ¿Deseas continuar?`);
+    if (!confirmed) return;
+
+    try {
+      await remove(selectedParticipant.id);
+      setSelectedParticipant((current) => (current ? { ...current, active: false } : current));
+      showToast('Participante desactivado correctamente');
+    } catch (err) {
+      showToast((err as Error).message);
     }
   };
 
@@ -201,37 +293,89 @@ export default function Participants() {
     }
   };
 
+  if (!isAdmin) {
+    return (
+      <div className={styles.page}>
+        <div className={styles.tableCard}>
+          <div className={styles.toolbar}>
+            <div>
+              <div className={styles.userName}>Mi perfil</div>
+              <div className={styles.muted}>Consulta tu información personal registrada en la plataforma.</div>
+            </div>
+          </div>
+
+          {ownParticipant ? (
+            <div className={styles.modalBody}>
+              <div className={styles.formRow}>
+                <div className={styles.formGroup}>
+                  <label>Nombre completo</label>
+                  <div className={styles.detailBox}>{ownParticipant.fullName || `${ownParticipant.givenName} ${ownParticipant.familyName}`.trim()}</div>
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Rol</label>
+                  <div className={styles.detailBox}>{ownParticipant.role}</div>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Email</label>
+                <div className={styles.detailBox}>{ownParticipant.email}</div>
+              </div>
+
+              <div className={styles.formRow}>
+                <div className={styles.formGroup}>
+                  <label>Departamento</label>
+                  <div className={styles.detailBox}>{ownParticipant.department || 'Sin departamento'}</div>
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Estado</label>
+                  <div className={styles.detailBox}>{ownParticipant.active ? 'Activo' : 'Inactivo'}</div>
+                </div>
+              </div>
+
+              <div className={styles.formGroup}>
+                <label>Alta en plataforma</label>
+                <div className={styles.detailBox}>{formatDate(ownParticipant.createdAt)}</div>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.modalBody}>
+              <div className={styles.detailBox}>
+                No se encontró un perfil ampliado en la base de datos. Tu acceso sigue siendo válido, pero conviene que un administrador complete tu ficha.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.tableCard}>
-        {/* Toolbar */}
         <div className={styles.toolbar}>
           <div className={styles.searchBox}>
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width="14" height="14">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Buscar por nombre o email..."
             />
           </div>
 
-          <select className={styles.select} value={dept} onChange={e => setDept(e.target.value)}>
-            {departments.map(d => <option key={d}>{d}</option>)}
+          <select className={styles.select} value={dept} onChange={(event) => setDept(event.target.value)}>
+            {departments.map((department) => <option key={department}>{department}</option>)}
           </select>
 
-          <button className={styles.btnOutline} onClick={() => showToast('Exportando participantes...')}>
+          <button className={styles.btnOutline} onClick={() => showToast('Exportación disponible próximamente en CSV.')}>
             Exportar
           </button>
           <button
             className={styles.btnPrimary}
             onClick={() => {
-              if (!isAdmin) {
-                showToast('Solo los administradores pueden añadir participantes');
-                return;
-              }
+              resetForm();
               setModalOpen(true);
             }}
           >
@@ -246,7 +390,6 @@ export default function Participants() {
           </div>
         )}
 
-        {/* Table */}
         <Table
           columns={columns}
           rows={filtered}
@@ -262,7 +405,7 @@ export default function Participants() {
         }}>
           <div className={styles.modal}>
             <div className={styles.modalHeader}>
-              <h2>Añadir participante</h2>
+              <h2>{editingId ? 'Editar participante' : 'Añadir participante'}</h2>
               <button className={styles.closeBtn} onClick={() => setModalOpen(false)}>✕</button>
             </div>
 
@@ -303,8 +446,8 @@ export default function Participants() {
               <button className={styles.btnOutline} onClick={() => setModalOpen(false)}>
                 Cancelar
               </button>
-              <button className={styles.btnPrimary} onClick={() => void handleCreate()} disabled={submitting}>
-                {submitting ? 'Guardando...' : 'Guardar participante'}
+              <button className={styles.btnPrimary} onClick={() => void handleSave()} disabled={submitting}>
+                {submitting ? 'Guardando...' : editingId ? 'Guardar cambios' : 'Guardar participante'}
               </button>
             </div>
           </div>
@@ -353,6 +496,17 @@ export default function Participants() {
                 <div className={styles.formGroup}>
                   <label>Alta en plataforma</label>
                   <div className={styles.detailBox}>{formatDate(selectedParticipant.createdAt)}</div>
+                </div>
+
+                <div className={styles.modalActions}>
+                  <button className={styles.btnOutline} onClick={() => startEditing(selectedParticipant)}>
+                    Editar
+                  </button>
+                  {selectedParticipant.active ? (
+                    <button className={styles.btnPrimary} onClick={() => void handleDeactivate()}>
+                      Desactivar
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ) : null}

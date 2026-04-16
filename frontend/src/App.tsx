@@ -17,6 +17,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, loading, isAdmin } = useAuth();
+  if (loading) return <div className="loading-screen"><div className="spinner" /></div>;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/courses" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <AppErrorBoundary>
@@ -33,7 +41,7 @@ export default function App() {
             <Route path="courses" element={<Courses />} />
             <Route path="participants" element={<Participants />} />
             <Route path="certifications" element={<Certifications />} />
-            <Route path="reports" element={<Reports />} />
+            <Route path="reports" element={<AdminRoute><Reports /></AdminRoute>} />
             <Route path="calendar" element={<CalendarPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

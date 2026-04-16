@@ -9,6 +9,7 @@ import { useCerts } from '../hooks/useCerts';
 import participantsService from '../services/participants.service';
 import type { CreateWorkshopPayload, Workshop } from '../services/courses.service';
 import coursesService from '../services/courses.service';
+import type { UserRegistration } from '../services/participants.service';
 import styles from './Courses.module.css';
 
 interface RegistrationItem {
@@ -36,9 +37,11 @@ export default function Courses() {
   const [filter, setFilter]       = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [search, setSearch]       = useState('');
+  const [editingCourse, setEditingCourse] = useState<Workshop | null>(null);
   const [registeringId, setRegisteringId] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<Workshop | null>(null);
   const [registrations, setRegistrations] = useState<RegistrationItem[]>([]);
+  const [myRegistrations, setMyRegistrations] = useState<UserRegistration[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [issuingCertFor, setIssuingCertFor] = useState<string | null>(null);
   const location = useLocation();
@@ -46,13 +49,25 @@ export default function Courses() {
   const { showToast }             = useToast();
   const { user, isAdmin }         = useAuth();
   const { issue: issueCert }      = useCerts();
-  const { courses, loading, error, create, remove, reload } = useCourses(
+  const { courses, loading, error, create, update, remove, reload } = useCourses(
     filter === 'all' ? undefined : { status: filter }
   );
   const safeCourses = Array.isArray(courses) ? courses : [];
 
   const visible = safeCourses
-    .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()));
+    .filter((course) => {
+      if (isAdmin) return true;
+      return course.status === 'scheduled';
+    })
+    .filter((course) => {
+      const text = search.trim().toLowerCase();
+      if (!text) return true;
+      return (
+        course.name.toLowerCase().includes(text) ||
+        course.category.toLowerCase().includes(text) ||
+        (course.description ?? '').toLowerCase().includes(text)
+      );
+    });
 
   const handleCreate = async (payload: CreateWorkshopPayload) => {
     try {
@@ -63,11 +78,29 @@ export default function Courses() {
     }
   };
 
+  const handleUpdate = async (payload: CreateWorkshopPayload) => {
+    if (!editingCourse) return;
+
+    try {
+      await update(editingCourse.id, payload);
+      showToast('Formación actualizada correctamente');
+      setEditingCourse(null);
+      setModalOpen(false);
+      await reload();
+    } catch (err) {
+      showToast((err as Error).message);
+    }
+  };
+
   const handleRegister = async (courseId: string) => {
     try {
       setRegisteringId(courseId);
       await coursesService.register(courseId);
       showToast('Inscripción realizada correctamente');
+      if (user?.sub) {
+        const response = await participantsService.registrations(user.sub);
+        setMyRegistrations(Array.isArray(response.items) ? response.items : []);
+      }
       await reload();
     } catch (err) {
       showToast((err as Error).message);
@@ -117,6 +150,9 @@ export default function Courses() {
     setDetailLoading(false);
     setIssuingCertFor(null);
   };
+
+  const isRegistered = (courseId: string) =>
+    myRegistrations.some((registration) => registration.workshopId === courseId && registration.status === 'confirmed');
 
   const formatDate = (value: string) => {
     const date = new Date(value);
@@ -170,8 +206,10 @@ export default function Courses() {
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
+    setSearch(params.get('search') ?? '');
     if (params.get('create') === '1') {
       if (isAdmin) {
+        setEditingCourse(null);
         setModalOpen(true);
       } else {
         showToast('Solo los administradores pueden crear formaciones');
@@ -180,6 +218,16 @@ export default function Courses() {
       navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
     }
   }, [isAdmin, location.pathname, location.search, navigate, showToast]);
+
+  useEffect(() => {
+    if (!user?.sub) return;
+    if (isAdmin) return;
+
+    void participantsService
+      .registrations(user.sub)
+      .then((response) => setMyRegistrations(Array.isArray(response.items) ? response.items : []))
+      .catch(() => setMyRegistrations([]));
+  }, [isAdmin, user?.sub]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -258,8 +306,9 @@ export default function Courses() {
               key={c.id}
               course={{ ...c, mode: formatMode(c.mode) }}
               onClick={() => void openCourseDetail(c)}
-              actionLabel={!isAdmin && user?.role === 'student' ? 'Inscribirme' : undefined}
+              actionLabel={!isAdmin && user?.role === 'student' ? (isRegistered(c.id) ? 'Inscrito' : 'Inscribirme') : undefined}
               actionDisabled={
+                isRegistered(c.id) ||
                 registeringId === c.id ||
                 c.status !== 'scheduled' ||
                 c.enrolledCount >= c.capacity
@@ -271,7 +320,16 @@ export default function Courses() {
       ) : null}
 
       {isAdmin ? (
-        <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSubmit={handleCreate} />
+        <Modal
+          isOpen={modalOpen}
+          onClose={() => {
+            setModalOpen(false);
+            setEditingCourse(null);
+          }}
+          onSubmit={editingCourse ? handleUpdate : handleCreate}
+          initialValues={editingCourse}
+          title={editingCourse ? 'Editar formación' : 'Nueva formación'}
+        />
       ) : null}
 
       {selectedCourse && (
@@ -285,6 +343,17 @@ export default function Courses() {
                 <h2>{selectedCourse.name}</h2>
               </div>
               <div className={styles.detailHeaderActions}>
+                {isAdmin && selectedCourse.status !== 'cancelled' && selectedCourse.status !== 'completed' ? (
+                  <button
+                    className={styles.issueBtn}
+                    onClick={() => {
+                      setEditingCourse(selectedCourse);
+                      setModalOpen(true);
+                    }}
+                  >
+                    Editar formación
+                  </button>
+                ) : null}
                 {isAdmin && selectedCourse.status !== 'cancelled' && selectedCourse.status !== 'completed' ? (
                   <button className={styles.deleteBtn} onClick={() => void handleDeleteCourse()}>
                     Cancelar formación

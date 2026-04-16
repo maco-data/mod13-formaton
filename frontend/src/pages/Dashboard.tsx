@@ -5,6 +5,7 @@ import { useToast } from '../store/ui.store';
 import { useCourses } from '../hooks/useCourses';
 import { useParticipants } from '../hooks/useParticipants';
 import { useCerts } from '../hooks/useCerts';
+import { useAuth } from '../hooks/useAuth';
 import styles from './Dashboard.module.css';
 
 const BAR_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
@@ -46,9 +47,10 @@ function weekdayIndex(value: string) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { isAdmin, user } = useAuth();
   const { courses, loading: loadingCourses, error: errorCourses } = useCourses();
-  const { participants, loading: loadingParticipants, error: errorParticipants } = useParticipants();
-  const { certs, loading: loadingCerts, error: errorCerts } = useCerts();
+  const { participants, loading: loadingParticipants, error: errorParticipants } = useParticipants({ enabled: isAdmin });
+  const { certs, loading: loadingCerts, error: errorCerts } = useCerts(isAdmin ? undefined : user?.sub);
 
   const now = new Date();
   const activeCourses = courses.filter((course) => ['scheduled', 'in_progress'].includes(course.status));
@@ -130,8 +132,8 @@ export default function Dashboard() {
       : null,
   ].filter(Boolean) as Array<{ icon: string; color: string; iconColor: string; text: string; time: string }>;
 
-  const loading = loadingCourses || loadingParticipants || loadingCerts;
-  const error = errorCourses || errorParticipants || errorCerts;
+  const loading = loadingCourses || (isAdmin && loadingParticipants) || loadingCerts;
+  const error = errorCourses || (isAdmin ? errorParticipants : null) || errorCerts;
 
   return (
     <div className={styles.page}>
@@ -207,7 +209,7 @@ export default function Dashboard() {
                 <div className={styles.upcomingItem}>
                   <div>
                     <div className={styles.upcomingTitle}>Sin próximas sesiones</div>
-                    <div className={styles.upcomingTime}>Cuando el backend devuelva cursos futuros aparecerán aquí.</div>
+                    <div className={styles.upcomingTime}>No hay sesiones futuras registradas por ahora.</div>
                   </div>
                 </div>
               )}
@@ -246,11 +248,19 @@ export default function Dashboard() {
           <div className={styles.cardBody}>
             <div className={styles.qaGrid}>
               {[
-                { icon: '➕', bg: 'var(--primary-light)', label: 'Nueva formación', sub: 'Crear curso', action: () => navigate('/courses?create=1') },
-                { icon: '👤', bg: 'var(--accent-light)', label: 'Añadir persona', sub: 'Revisar usuarios', action: () => navigate('/participants') },
-                { icon: '📋', bg: 'var(--success-light)', label: 'Ver informes', sub: 'Analítica actual', action: () => navigate('/reports') },
-                { icon: '🏅', bg: 'var(--warning-light)', label: 'Certificados', sub: 'Seguimiento', action: () => navigate('/certifications') },
-              ].map((action) => (
+                ...(isAdmin
+                  ? [
+                      { icon: '➕', bg: 'var(--primary-light)', label: 'Nueva formación', sub: 'Crear curso', action: () => navigate('/courses?create=1') },
+                      { icon: '👤', bg: 'var(--accent-light)', label: 'Añadir persona', sub: 'Revisar usuarios', action: () => navigate('/participants') },
+                      { icon: '📋', bg: 'var(--success-light)', label: 'Ver informes', sub: 'Analítica actual', action: () => navigate('/reports') },
+                      { icon: '🏅', bg: 'var(--warning-light)', label: 'Certificados', sub: 'Seguimiento', action: () => navigate('/certifications') },
+                    ]
+                  : [
+                      { icon: '🎓', bg: 'var(--primary-light)', label: 'Explorar cursos', sub: 'Catálogo disponible', action: () => navigate('/courses') },
+                      { icon: '📅', bg: 'var(--accent-light)', label: 'Mi calendario', sub: 'Sesiones inscritas', action: () => navigate('/calendar') },
+                      { icon: '👤', bg: 'var(--success-light)', label: 'Mi perfil', sub: 'Datos personales', action: () => navigate('/participants') },
+                      { icon: '🏅', bg: 'var(--warning-light)', label: 'Mis certificados', sub: 'Histórico personal', action: () => navigate('/certifications') },
+                    ])].map((action) => (
                 <button key={action.label} className={styles.qaBtn} onClick={action.action}>
                   <div className={styles.qaIcon} style={{ background: action.bg }}>{action.icon}</div>
                   <div><div className={styles.qaLabel}>{action.label}</div><div className={styles.qaSub}>{action.sub}</div></div>

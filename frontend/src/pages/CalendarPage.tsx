@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Calendar from '../components/Calendar';
 import { useToast } from '../store/ui.store';
 import { useCourses } from '../hooks/useCourses';
+import { useAuth } from '../hooks/useAuth';
+import participantsService from '../services/participants.service';
 import type { Workshop } from '../services/courses.service';
 import styles from './CalendarPage.module.css';
 
@@ -69,14 +71,33 @@ export default function CalendarPage() {
   const [currentYear, setCurrentYear] = useState(now.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(now.getMonth());
   const [selected, setSelected] = useState<CalendarSession | null>(null);
+  const [registeredIds, setRegisteredIds] = useState<string[]>([]);
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const { user, isAdmin } = useAuth();
   const { courses, loading, error, reload } = useCourses();
+
+  useEffect(() => {
+    if (!user?.sub || isAdmin) return;
+    void participantsService
+      .registrations(user.sub)
+      .then((response) => {
+        setRegisteredIds(
+          Array.isArray(response.items)
+            ? response.items
+                .filter((registration) => registration.status === 'confirmed')
+                .map((registration) => registration.workshopId)
+            : []
+        );
+      })
+      .catch(() => setRegisteredIds([]));
+  }, [isAdmin, user?.sub]);
 
   const monthSessions = useMemo(
     () =>
       courses
         .filter((course) => {
+          if (!isAdmin && !registeredIds.includes(course.id)) return false;
           if (!isValidDate(course.startAt)) return false;
           if (course.status === 'cancelled') return false;
           const start = new Date(course.startAt);
@@ -95,7 +116,7 @@ export default function CalendarPage() {
           startAt: course.startAt,
           endAt: course.endAt,
         })),
-    [courses, currentMonth, currentYear]
+    [courses, currentMonth, currentYear, isAdmin, registeredIds]
   );
 
   const calendarEvents = useMemo(
@@ -128,7 +149,9 @@ export default function CalendarPage() {
         <div className={styles.card}>
           <div className={styles.cardHeader}>
             <div className={styles.cardTitle}>{formatMonthLabel(currentYear, currentMonth)}</div>
-            <button className={styles.btnPrimary} onClick={() => navigate('/courses?create=1')}>+ Nueva sesión</button>
+            {isAdmin ? (
+              <button className={styles.btnPrimary} onClick={() => navigate('/courses?create=1')}>+ Nueva sesión</button>
+            ) : null}
           </div>
           <div className={styles.calBody}>
             <Calendar
@@ -186,7 +209,9 @@ export default function CalendarPage() {
               {!loading && !error && monthSessions.length === 0 && (
                 <div className={styles.emptyState}>
                   <div>No hay sesiones en este mes.</div>
-                  <button className={styles.btnSmOutline} onClick={() => navigate('/courses?create=1')}>Crear una sesión</button>
+                  {isAdmin ? (
+                    <button className={styles.btnSmOutline} onClick={() => navigate('/courses?create=1')}>Crear una sesión</button>
+                  ) : null}
                 </div>
               )}
               {!loading && !error && monthSessions.map(ev => (

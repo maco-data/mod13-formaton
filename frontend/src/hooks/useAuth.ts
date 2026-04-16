@@ -2,19 +2,30 @@ import { useEffect, useCallback } from 'react';
 import type { FormatonUser } from '../services/auth.service';
 import { useAuthStore } from '../store/auth.store';
 
-// ─── Demo mode ───────────────────────────────────────────────────────────────
-// Si no hay VITE_USER_POOL_ID configurado, la app corre en modo demo local:
-// cualquier email/contraseña es válido y se usa un usuario ficticio de admin.
+// ─── Local fallback ───────────────────────────────────────────────────────────
+// Si no hay Cognito configurado, solo se permiten las credenciales demo
+// documentadas para no dar sensación de "modo fake" abierto.
 const DEMO_MODE = !import.meta.env.VITE_USER_POOL_ID;
 
-const DEMO_USER: FormatonUser = {
-  sub: 'demo-user-001',
-  email: 'admin@formaton.demo',
-  givenName: 'Ana',
-  familyName: 'Pérez',
-  department: 'Recursos Humanos',
-  role: 'admin',
-  groups: ['admin'],
+const DEMO_USERS: Record<string, FormatonUser> = {
+  'admin@formaton.demo': {
+    sub: 'demo-admin-001',
+    email: 'admin@formaton.demo',
+    givenName: 'Admin',
+    familyName: 'Formaton',
+    department: 'Recursos Humanos',
+    role: 'admin',
+    groups: ['admin'],
+  },
+  'student@formaton.demo': {
+    sub: 'demo-student-001',
+    email: 'student@formaton.demo',
+    givenName: 'Student',
+    familyName: 'Formaton',
+    department: 'Operaciones',
+    role: 'student',
+    groups: ['student'],
+  },
 };
 
 const DEMO_SESSION_KEY = 'formaton_demo_session';
@@ -49,8 +60,8 @@ export function useAuth() {
       setError(null);
 
       if (DEMO_MODE) {
-        const active = sessionStorage.getItem(DEMO_SESSION_KEY);
-        setSession(active ? DEMO_USER : null, null);
+        const activeEmail = sessionStorage.getItem(DEMO_SESSION_KEY);
+        setSession(activeEmail ? DEMO_USERS[activeEmail] ?? null : null, null);
         setInitialized(true);
         setLoading(false);
         return;
@@ -89,13 +100,21 @@ export function useAuth() {
 
     if (DEMO_MODE) {
       await new Promise(r => setTimeout(r, 600));
-      if (!email || !password) {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!normalizedEmail || !password) {
         setLoading(false);
         setError('Introduce email y contraseña');
         throw new Error('Credenciales vacías');
       }
-      sessionStorage.setItem(DEMO_SESSION_KEY, '1');
-      setSession(DEMO_USER, null);
+
+      if (password !== 'Formaton2026!' || !DEMO_USERS[normalizedEmail]) {
+        setLoading(false);
+        setError('Credenciales incorrectas');
+        throw new Error('Credenciales incorrectas');
+      }
+
+      sessionStorage.setItem(DEMO_SESSION_KEY, normalizedEmail);
+      setSession(DEMO_USERS[normalizedEmail], null);
       setInitialized(true);
       setLoading(false);
       return;

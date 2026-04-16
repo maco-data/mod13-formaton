@@ -74,6 +74,9 @@ export class ApiStack extends cdk.Stack {
     const listUsers           = fn('ListUsers',           'handlers/users/list.handler',                 'GET /users (admin)');
     const getUser             = fn('GetUser',             'handlers/users/get.handler',                  'GET /users/{id}');
     const createUser          = fn('CreateUser',          'handlers/users/create.handler',               'POST /users (admin)');
+    const updateUser          = fn('UpdateUser',          'handlers/users/update.handler',               'PUT /users/{id} (admin)');
+    const deleteUser          = fn('DeleteUser',          'handlers/users/delete.handler',               'DELETE /users/{id} (admin)');
+    const listUserRegistrations = fn('ListUserRegistrations', 'handlers/users/registrations.handler',   'GET /users/{id}/registrations');
     const healthz             = fn('Healthz',             'handlers/healthz/get.handler',                'GET /healthz');
     const sendConfirmation    = fn('SendConfirmation',    'handlers/notifications/send-confirmation.handler', 'Notificación de inscripción');
     const sendReminder        = fn('SendReminder',        'handlers/notifications/send-reminder.handler',    'Recordatorio 24h antes');
@@ -85,7 +88,7 @@ export class ApiStack extends cdk.Stack {
       listWorkshops, getWorkshop, createWorkshop, updateWorkshop, deleteWorkshop,
       registerStudent, unregisterStudent, listRegistrations,
       issueCert, listCerts, verifyCert,
-      listUsers, getUser, createUser,
+      listUsers, getUser, createUser, updateUser, deleteUser, listUserRegistrations,
       sendConfirmation, sendReminder, sendCancellation, dispatchReminders,
     ];
 
@@ -95,8 +98,8 @@ export class ApiStack extends cdk.Stack {
       .filter((alias): alias is lambda.Alias => Boolean(alias));
 
     // ── IAM permissions ───────────────────────────────────────────────────
-    const tableReadFns  = [listWorkshops, getWorkshop, listRegistrations, listCerts, verifyCert, registerStudent, listUsers, getUser, issueCert, deleteWorkshop, dispatchReminders].map(handler => handler.fn);
-    const tableWriteFns = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, createUser, dispatchReminders].map(handler => handler.fn);
+    const tableReadFns  = [listWorkshops, getWorkshop, listRegistrations, listCerts, verifyCert, registerStudent, listUsers, getUser, issueCert, deleteWorkshop, dispatchReminders, listUserRegistrations].map(handler => handler.fn);
+    const tableWriteFns = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, createUser, updateUser, deleteUser, dispatchReminders].map(handler => handler.fn);
     const eventFns      = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, dispatchReminders].map(handler => handler.fn);
 
     tableReadFns.forEach(f  => props.table.grantReadData(f));
@@ -317,6 +320,9 @@ export class ApiStack extends cdk.Stack {
 
     const user = users.addResource('{id}');
     user.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(getUser)), authOptions);
+    user.addMethod('PUT', new apigateway.LambdaIntegration(integrationTarget(updateUser)), authOptions);
+    user.addMethod('DELETE', new apigateway.LambdaIntegration(integrationTarget(deleteUser)), authOptions);
+    user.addResource('registrations').addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(listUserRegistrations)), authOptions);
 
     this.apiUrl = this.api.url;
 

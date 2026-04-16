@@ -56,13 +56,7 @@ export default function Login() {
             <p>Introduce tus credenciales corporativas</p>
           </div>
 
-          {isDemoMode && (
-            <div className={styles.demoBanner}>
-              🧪 <strong>Modo demo</strong> — introduce cualquier email y contraseña para entrar.
-            </div>
-          )}
-
-          {!isDemoMode && isDev && (
+          {(isDemoMode || isDev) && (
             <div className={styles.demoBanner}>
               Admin: <strong>admin@formaton.demo</strong> · Student: <strong>student@formaton.demo</strong> · Clave: <strong>Formaton2026!</strong>
             </div>

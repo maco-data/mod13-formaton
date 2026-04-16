@@ -1,22 +1,40 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useToast } from '../store/ui.store';
-import type { CreateWorkshopPayload } from '../services/courses.service';
+import type { CreateWorkshopPayload, Workshop } from '../services/courses.service';
 import styles from './Modal.module.css';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSubmit?: (payload: CreateWorkshopPayload) => Promise<void>;
+  initialValues?: Partial<Workshop> | null;
+  title?: string;
 }
 
-export default function Modal({ isOpen, onClose, onSubmit }: Props) {
+function toLocalDateTime(value?: string) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part: number) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export default function Modal({ isOpen, onClose, onSubmit, initialValues, title = 'Nueva formación' }: Props) {
   const { showToast } = useToast();
   const [submitting, setSubmitting] = useState(false);
-  const [form, setForm] = useState({
-    name: '', category: '', mode: 'presencial', location: '',
-    startAt: '', endAt: '', durationHours: '', capacity: '',
-    description: '', cert: 'obligatorio',
+  const buildForm = () => ({
+    name: initialValues?.name ?? '',
+    category: initialValues?.category ?? '',
+    mode: initialValues?.mode ?? 'presencial',
+    location: initialValues?.location ?? '',
+    startAt: toLocalDateTime(initialValues?.startAt),
+    endAt: toLocalDateTime(initialValues?.endAt),
+    durationHours: initialValues?.durationHours ? String(initialValues.durationHours) : '',
+    capacity: initialValues?.capacity ? String(initialValues.capacity) : '',
+    description: initialValues?.description ?? '',
+    cert: initialValues?.generatesCert === false ? 'ninguno' : 'obligatorio',
   });
+  const [form, setForm] = useState(buildForm);
 
   if (!isOpen) return null;
 
@@ -24,8 +42,12 @@ export default function Modal({ isOpen, onClose, onSubmit }: Props) {
     setForm(f => ({ ...f, [k]: e.target.value }));
 
   const resetForm = () => {
-    setForm({ name:'', category:'', mode:'presencial', location:'', startAt:'', endAt:'', durationHours:'', capacity:'', description:'', cert:'obligatorio' });
+    setForm(buildForm());
   };
+
+  useEffect(() => {
+    setForm(buildForm());
+  }, [initialValues]);
 
   const toIsoString = (value: string) => {
     const date = new Date(value);
@@ -72,7 +94,7 @@ export default function Modal({ isOpen, onClose, onSubmit }: Props) {
     <div className={styles.overlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={styles.modal}>
         <div className={styles.header}>
-          <h2>Nueva formación</h2>
+          <h2>{title}</h2>
           <button className={styles.close} onClick={onClose}>✕</button>
         </div>
 

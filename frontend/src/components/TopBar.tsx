@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useToast } from '../store/ui.store';
 import { useAuth } from '../hooks/useAuth';
+import { useNotifications } from '../hooks/useNotifications';
 import styles from './TopBar.module.css';
 
 const PAGE_TITLES: Record<string, string> = {
@@ -18,7 +19,8 @@ export default function TopBar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { isAdmin, isDemoMode, logout } = useAuth();
+  const { isAdmin, logout } = useAuth();
+  const notificationCount = useNotifications();
 
   const pageTitle = PAGE_TITLES[location.pathname] ?? 'Formaton';
   const isCoursesPage = location.pathname === '/courses';
@@ -33,10 +35,11 @@ export default function TopBar() {
     }
 
     if (location.pathname !== '/courses') {
-      navigate('/courses');
+      navigate(`/courses?search=${encodeURIComponent(query.trim())}`);
+      return;
     }
 
-    showToast(`Búsqueda disponible en Formaciones: "${query.trim()}"`);
+    navigate(`/courses?search=${encodeURIComponent(query.trim())}`);
   };
 
   const handlePrimaryAction = () => {
@@ -60,16 +63,7 @@ export default function TopBar() {
   };
 
   return (
-    <>
-      {isDemoMode && (
-        <div className={styles.demoBanner}>
-          Modo demo activo. Puedes iniciar sesión y explorar sin backend. Configura
-          <code> VITE_USER_POOL_ID </code>
-          para usar autenticación real.
-        </div>
-      )}
-
-      <header className={styles.topbar}>
+    <header className={styles.topbar}>
         <div className={styles.title}>{pageTitle}</div>
 
         <form className={styles.search} onSubmit={handleSearch}>
@@ -92,7 +86,7 @@ export default function TopBar() {
         <button
           type="button"
           className={styles.iconBtn}
-          onClick={() => showToast('Tienes notificaciones pendientes')}
+          onClick={() => showToast(notificationCount > 0 ? `Tienes ${notificationCount} notificaciones relevantes` : 'No tienes notificaciones pendientes')}
           aria-label="Notificaciones"
           title="Notificaciones"
         >
@@ -104,7 +98,7 @@ export default function TopBar() {
               d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2a2 2 0 01-.6 1.4L4 17h5m6 0a3 3 0 11-6 0m6 0H9"
             />
           </svg>
-          <span className={styles.notifDot} />
+          {notificationCount > 0 ? <span className={styles.notifDot} /> : null}
         </button>
 
         {(!isCoursesPage || isAdmin) && (
@@ -143,6 +137,5 @@ export default function TopBar() {
           </svg>
         </button>
       </header>
-    </>
   );
 }
