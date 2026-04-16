@@ -4,6 +4,7 @@
 
 .sectionHeader { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .sectionTitle  { font-size: 15px; font-weight: 700; }
+.sectionSubtitle { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
 .btnOutline {
   padding: 6px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm);
   background: white; font-size: 12px; font-weight: 600; color: var(--text-secondary); transition: all 0.15s;
@@ -28,6 +29,87 @@
 .certProgress{ display: flex; align-items: center; gap: 8px; }
 .certPct     { font-size: 11px; font-weight: 700; white-space: nowrap; }
 .certCount   { font-size: 11px; color: var(--text-muted); margin-top: 5px; }
+
+.listCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.certificateRow {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: white;
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  text-align: left;
+  transition: all 0.18s;
+}
+
+.certificateRow:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow);
+}
+
+.certificateMain {
+  min-width: 0;
+  flex: 1;
+}
+
+.certificateTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.certificateMeta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.certificateSide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.certificateHint {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.statusValid {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.statusExpired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.statusRevoked {
+  background: #e5e7eb;
+  color: #374151;
+}
 
 .sidebar { display: flex; flex-direction: column; gap: 14px; }
 .card { background: white; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
@@ -62,6 +144,26 @@
   transition: all 0.15s;
 }
 .actionBtn:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-light); }
+
+.summaryList {
+  padding: 14px 16px 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.summaryItem {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.summaryItem strong {
+  font-size: 20px;
+  color: var(--text);
+}
 
 .overlay {
   position: fixed;
@@ -154,5 +256,15 @@
   .certGrid,
   .detailGrid {
     grid-template-columns: 1fr;
+  }
+
+  .sectionHeader,
+  .certificateRow {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .certificateSide {
+    align-items: flex-start;
   }
 }

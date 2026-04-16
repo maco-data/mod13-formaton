@@ -60,7 +60,7 @@ export default function Participants() {
   const [form, setForm] = useState<CreateParticipantPayload>(EMPTY_FORM);
   const { showToast } = useToast();
   const { isAdmin, user } = useAuth();
-  const { participants, loading, error, create, update, remove, reload } = useParticipants({ enabled: isAdmin });
+  const { participants, loading, error, create, update, deactivate, reload } = useParticipants({ enabled: isAdmin });
 
   const ownParticipant = useMemo(
     () => selfParticipant ?? participants.find((participant) => participant.id === user?.sub || participant.email === user?.email) ?? null,
@@ -257,13 +257,16 @@ export default function Participants() {
     if (!selectedParticipant || !isAdmin) return;
     if (!selectedParticipant.active) return;
 
-    const confirmed = window.confirm(`Se desactivará a ${selectedParticipant.fullName || selectedParticipant.email}. ¿Deseas continuar?`);
+    const confirmed = window.confirm(
+      `Se desactivará a ${selectedParticipant.fullName || selectedParticipant.email}. ` +
+      'Su ficha seguirá disponible y no se eliminará su histórico. ¿Deseas continuar?'
+    );
     if (!confirmed) return;
 
     try {
-      await remove(selectedParticipant.id);
+      await deactivate(selectedParticipant.id);
       setSelectedParticipant((current) => (current ? { ...current, active: false } : current));
-      showToast('Participante desactivado correctamente');
+      showToast('Participante desactivado correctamente. El histórico se ha conservado.');
     } catch (err) {
       showToast((err as Error).message);
     }
@@ -498,13 +501,19 @@ export default function Participants() {
                   <div className={styles.detailBox}>{formatDate(selectedParticipant.createdAt)}</div>
                 </div>
 
+                {!selectedParticipant.active ? (
+                  <div className={styles.detailBox}>
+                    Este participante está desactivado. Su ficha y su histórico permanecen disponibles para consulta.
+                  </div>
+                ) : null}
+
                 <div className={styles.modalActions}>
                   <button className={styles.btnOutline} onClick={() => startEditing(selectedParticipant)}>
                     Editar
                   </button>
                   {selectedParticipant.active ? (
                     <button className={styles.btnPrimary} onClick={() => void handleDeactivate()}>
-                      Desactivar
+                      Desactivar participante
                     </button>
                   ) : null}
                 </div>

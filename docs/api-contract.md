@@ -132,6 +132,59 @@ Lista todos los inscritos de un taller.
 
 ---
 
+## Usuarios (Participants)
+
+### `GET /users` — Admin
+Lista los perfiles de usuario creados en la plataforma, incluyendo activos e inactivos.
+
+**Respuesta 200:**
+```json
+{ "items": [ ...User[] ], "count": 12 }
+```
+
+---
+
+### `GET /users/{id}` — Admin / Usuario autenticado
+Admin puede consultar cualquier perfil. Un usuario autenticado puede consultar el suyo.
+
+**Respuesta 200:** `User`
+**Respuesta 403:** sin permisos para consultar otro perfil
+**Respuesta 404:** usuario no encontrado
+
+---
+
+### `PUT /users/{id}` — Admin
+Actualiza parcialmente un perfil de usuario.
+
+Validaciones de negocio:
+- `email`, `givenName`, `familyName` y `department` no pueden quedar vacíos si se envían
+- `role` debe ser `admin`, `manager` o `student`
+- `fullName` se recalcula automáticamente a partir de nombre y apellidos
+
+**Respuesta 200:** `User` actualizado.
+
+---
+
+### `DELETE /users/{id}` — Admin
+Desactiva al participante (`active = false`). No hace borrado duro: la ficha y el histórico permanecen disponibles.
+
+**Respuesta 204:** Sin cuerpo.
+**Respuesta 409:** el participante ya estaba inactivo.
+
+---
+
+### `GET /users/{id}/registrations` — Admin / Usuario autenticado
+Lista las inscripciones de un usuario. Admin puede consultar cualquier usuario; un usuario autenticado solo puede consultar las suyas.
+
+**Respuesta 200:**
+```json
+{ "items": [ ...Registration[] ], "count": 4 }
+```
+
+Cada inscripción puede incluir `workshop` con el detalle del taller asociado.
+
+---
+
 ## Certificados (Certs)
 
 ### `POST /certs/issue` — Admin
@@ -212,6 +265,22 @@ Verifica la autenticidad de un certificado por su ID.
   attended?: boolean;
   certIssued?: boolean;
   certId?: string;
+}
+```
+
+### User
+```typescript
+{
+  id: string;
+  email: string;
+  givenName: string;
+  familyName: string;
+  fullName: string;
+  department: string;
+  role: 'admin' | 'manager' | 'student';
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 ```
 

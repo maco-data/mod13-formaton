@@ -48,8 +48,8 @@ export function useParticipants(options: UseParticipantsOptions = {}) {
     return participant;
   }, []);
 
-  const remove = useCallback(async (id: string) => {
-    await participantsService.remove(id);
+  const deactivate = useCallback(async (id: string) => {
+    await participantsService.deactivate(id);
     setState((s) => ({
       ...s,
       items: s.items.map((item) => (item.id === id ? { ...item, active: false } : item)),
@@ -62,7 +62,7 @@ export function useParticipants(options: UseParticipantsOptions = {}) {
     error: state.error,
     create,
     update,
-    remove,
+    deactivate,
     reload: load,
   };
 }

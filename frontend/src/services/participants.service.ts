@@ -60,7 +60,7 @@ export const participantsService = {
   update: (id: string, payload: UpdateParticipantPayload) =>
     api.put<Participant>(`/users/${id}`, payload),
 
-  remove: (id: string) =>
+  deactivate: (id: string) =>
     api.delete<void>(`/users/${id}`),
 
   registrations: (id: string) =>
