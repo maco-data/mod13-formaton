@@ -4,6 +4,7 @@ import { badRequest, notFound, ok } from '../../shared/utils/response';
 import { withErrorHandler } from '../../shared/middleware/error-handler';
 import { requireAdmin } from '../../shared/middleware/auth';
 import { User, UserRole } from '../../shared/models/user.model';
+import { normalizeUserInput, validateUpdateUserInput } from '../../shared/validation/user';
 
 type UpdateUserInput = {
   email?: string;
@@ -31,43 +32,17 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
     return badRequest('JSON inválido');
   }
 
+  const normalized = normalizeUserInput(input);
+  const validationError = validateUpdateUserInput(normalized);
+  if (validationError) return badRequest(validationError);
+
   const updates: Record<string, unknown> = {};
-
-  if (input.email !== undefined) {
-    const email = input.email.trim().toLowerCase();
-    if (!email) return badRequest('email no puede estar vacío');
-    updates.email = email;
-  }
-
-  const givenName = input.givenName?.trim();
-  const familyName = input.familyName?.trim();
-  const department = input.department?.trim();
-
-  if (input.givenName !== undefined) {
-    if (!givenName) return badRequest('givenName no puede estar vacío');
-    updates.givenName = givenName;
-  }
-
-  if (input.familyName !== undefined) {
-    if (!familyName) return badRequest('familyName no puede estar vacío');
-    updates.familyName = familyName;
-  }
-
-  if (input.department !== undefined) {
-    if (!department) return badRequest('department no puede estar vacío');
-    updates.department = department;
-  }
-
-  if (input.role !== undefined) {
-    if (!['admin', 'manager', 'student'].includes(input.role)) {
-      return badRequest('Rol inválido');
-    }
-    updates.role = input.role;
-  }
-
-  if (input.active !== undefined) {
-    updates.active = input.active;
-  }
+  if (normalized.email !== undefined) updates.email = normalized.email;
+  if (normalized.givenName !== undefined) updates.givenName = normalized.givenName;
+  if (normalized.familyName !== undefined) updates.familyName = normalized.familyName;
+  if (normalized.department !== undefined) updates.department = normalized.department;
+  if (normalized.role !== undefined) updates.role = normalized.role;
+  if (normalized.active !== undefined) updates.active = normalized.active;
 
   const resolvedGivenName = (updates.givenName as string | undefined) ?? existing.givenName;
   const resolvedFamilyName = (updates.familyName as string | undefined) ?? existing.familyName;

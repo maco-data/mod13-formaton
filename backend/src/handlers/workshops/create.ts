@@ -7,6 +7,7 @@ import { requireAdmin } from '../../shared/middleware/auth';
 import { Workshop, CreateWorkshopInput } from '../../shared/models/workshop.model';
 import { publishEvent } from '../../events/workshop-created';
 import { validateCreateWorkshopInput } from '../../shared/validation/workshop';
+import { upsertWorkshopReminderSchedule } from '../../shared/utils/reminder-scheduler';
 
 /**
  * POST /workshops  (admin)
@@ -59,6 +60,7 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
   };
 
   await putItem(workshop);
+  await upsertWorkshopReminderSchedule(workshop);
   await publishEvent(workshop);
 
   return created(workshop);

@@ -7,15 +7,20 @@ jest.mock('../../src/shared/utils/dynamo-client', () => ({
 jest.mock('../../src/events/workshop-created', () => ({
   publishEvent: jest.fn(),
 }));
+jest.mock('../../src/shared/utils/reminder-scheduler', () => ({
+  upsertWorkshopReminderSchedule: jest.fn(),
+}));
 
 // @ts-nocheck
 
 import { handler } from '../../src/handlers/workshops/create';
 import { putItem } from '../../src/shared/utils/dynamo-client';
 import { publishEvent } from '../../src/events/workshop-created';
+import { upsertWorkshopReminderSchedule } from '../../src/shared/utils/reminder-scheduler';
 
 const mockPut = putItem as jest.MockedFunction<typeof putItem>;
 const mockPublish = publishEvent as jest.MockedFunction<typeof publishEvent>;
+const mockUpsertReminder = upsertWorkshopReminderSchedule as jest.MockedFunction<typeof upsertWorkshopReminderSchedule>;
 
 const makeEvent = (body: Record<string, unknown>): Partial<APIGatewayProxyEvent> => ({
   body: JSON.stringify(body),
@@ -54,12 +59,14 @@ describe('POST /workshops', () => {
 
   it('crea un taller válido', async () => {
     mockPut.mockResolvedValue(undefined);
+    mockUpsertReminder.mockResolvedValue(undefined);
     mockPublish.mockResolvedValue(undefined);
 
     const res = await handler(makeEvent(validPayload) as APIGatewayProxyEvent);
 
     expect(res.statusCode).toBe(201);
     expect(mockPut).toHaveBeenCalled();
+    expect(mockUpsertReminder).toHaveBeenCalled();
     expect(mockPublish).toHaveBeenCalled();
   });
 

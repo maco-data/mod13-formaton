@@ -4,6 +4,10 @@ export interface EnvConfig {
   domainName?: string;
   hostedZoneName?: string;
   hostedZoneId?: string;
+  notificationFromEmail: string;
+  budgetMonthlyUsd: number;
+  budgetAlertThresholdPct: number;
+  budgetAlertEmails: string[];
   logRetentionDays: number;
   lambdaReservedConcurrency?: number;
   apiThrottlingRateLimit: number;
@@ -17,6 +21,10 @@ export interface EnvConfig {
 
 const defaults: Omit<EnvConfig, 'envName'> = {
   region: 'eu-west-1',
+  notificationFromEmail: 'formaton@tuempresa.es',
+  budgetMonthlyUsd: 25,
+  budgetAlertThresholdPct: 80,
+  budgetAlertEmails: ['ops@tuempresa.es'],
   logRetentionDays: 30,
   lambdaReservedConcurrency: 10,
   apiThrottlingRateLimit: 100,
@@ -41,6 +49,7 @@ const configs: Record<string, EnvConfig> = {
     domainName: 'formaton.tuempresa.es',        // ← actualizar
     hostedZoneName: 'tuempresa.es',             // ← actualizar
     hostedZoneId: 'ZXXXXXXXXXXXXX',             // ← actualizar
+    budgetMonthlyUsd: 100,
     logRetentionDays: 90,
     lambdaReservedConcurrency: 50,
     apiThrottlingRateLimit: 1000,

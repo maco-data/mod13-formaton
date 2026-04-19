@@ -5,6 +5,7 @@ import { withErrorHandler } from '../../shared/middleware/error-handler';
 import { requireAdmin } from '../../shared/middleware/auth';
 import { UpdateWorkshopInput, Workshop } from '../../shared/models/workshop.model';
 import { validateUpdateWorkshopInput } from '../../shared/validation/workshop';
+import { upsertWorkshopReminderSchedule } from '../../shared/utils/reminder-scheduler';
 
 const IMMUTABLE = ['id', 'PK', 'SK', 'enrolledCount', 'createdAt', 'GSI1PK'];
 
@@ -34,7 +35,9 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
   if (updates.category) payload.GSI2PK = `CATEGORY#${updates.category}`;
 
   await updateItem(`WORKSHOP#${id}`, 'META', payload);
-  const updated = await getItem(`WORKSHOP#${id}`, 'META');
+  const updated = await getItem<Workshop>(`WORKSHOP#${id}`, 'META');
+  if (!updated) return notFound('Workshop');
+  await upsertWorkshopReminderSchedule(updated);
 
   return ok(updated);
 });

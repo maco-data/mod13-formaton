@@ -8,6 +8,7 @@ import { Cert, IssueCertInput } from '../../shared/models/cert.model';
 import { Workshop } from '../../shared/models/workshop.model';
 import { Registration } from '../../shared/models/registration.model';
 import { publishCertIssued } from '../../events/cert-issued';
+import { validateIssueCertInput } from '../../shared/validation/cert';
 
 /** POST /certs/issue  (admin) */
 export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
@@ -17,8 +18,13 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
   let input: IssueCertInput;
   try { input = JSON.parse(event.body); } catch { return badRequest('JSON inválido'); }
 
-  const { userId, workshopId, score, expiresAt } = input;
-  if (!userId || !workshopId) return badRequest('userId y workshopId requeridos');
+  const validationError = validateIssueCertInput(input);
+  if (validationError) return badRequest(validationError);
+
+  const userId = input.userId.trim();
+  const workshopId = input.workshopId.trim();
+  const score = input.score;
+  const expiresAt = input.expiresAt?.trim();
 
   const [workshop, reg] = await Promise.all([
     getItem<Workshop>(`WORKSHOP#${workshopId}`, 'META'),

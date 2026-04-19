@@ -5,6 +5,7 @@ import * as sns from 'aws-cdk-lib/aws-sns';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 import { EnvConfig } from '../../config/environments';
 
@@ -14,6 +15,7 @@ interface ObservabilityStackProps extends cdk.StackProps {
   api: apigateway.RestApi;
   lambdaFunctions: lambda.Function[];
   table: dynamodb.Table;
+  dlq: sqs.Queue;
 }
 
 export class ObservabilityStack extends cdk.Stack {
@@ -70,7 +72,10 @@ export class ObservabilityStack extends cdk.Stack {
     });
 
     // ── Alarma DLQ ────────────────────────────────────────────────────────
-    // (referenciada via SSM o cross-stack si se necesita)
+    alarm('EventsDlqDepthAlarm',
+      props.dlq.metricApproximateNumberOfMessagesVisible({ period: cdk.Duration.minutes(5) }),
+      0, `DLQ ${props.dlq.queueName} contiene mensajes pendientes`
+    );
 
     // ── Dashboard ─────────────────────────────────────────────────────────
     new cloudwatch.Dashboard(this, 'FormatonDashboard', {

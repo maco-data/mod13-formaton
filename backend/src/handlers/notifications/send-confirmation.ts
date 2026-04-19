@@ -3,6 +3,7 @@ import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
 import { getItem } from '../../shared/utils/dynamo-client';
 import { User } from '../../shared/models/user.model';
 import { Workshop } from '../../shared/models/workshop.model';
+import { getSesFromAddress } from '../../shared/utils/app-config';
 
 const ses = new SESClient({});
 
@@ -40,9 +41,10 @@ export const handler = async (event: EventBridgeEvent<'student.registered', Stud
   const startDate = new Date(workshop.startAt).toLocaleDateString('es-ES', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
+  const sourceAddress = await getSesFromAddress();
 
   await ses.send(new SendEmailCommand({
-    Source: process.env.SES_FROM ?? 'formaton@tuempresa.es',
+    Source: sourceAddress,
     Destination: { ToAddresses: [recipient.email] },
     Message: {
       Subject: { Data: `✅ Inscripción confirmada: ${workshop.name}` },

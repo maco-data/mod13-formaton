@@ -5,14 +5,19 @@ jest.mock('../../src/shared/utils/dynamo-client', () => ({
   updateItem: jest.fn(),
   TABLE: 'formaton-test',
 }));
+jest.mock('../../src/shared/utils/reminder-scheduler', () => ({
+  upsertWorkshopReminderSchedule: jest.fn(),
+}));
 
 // @ts-nocheck
 
 import { handler } from '../../src/handlers/workshops/update';
 import { getItem, updateItem } from '../../src/shared/utils/dynamo-client';
+import { upsertWorkshopReminderSchedule } from '../../src/shared/utils/reminder-scheduler';
 
 const mockGet = getItem as jest.MockedFunction<typeof getItem>;
 const mockUpdate = updateItem as jest.MockedFunction<typeof updateItem>;
+const mockUpsertReminder = upsertWorkshopReminderSchedule as jest.MockedFunction<typeof upsertWorkshopReminderSchedule>;
 
 const existingWorkshop = {
   PK: 'WORKSHOP#ws-1',
@@ -67,11 +72,13 @@ describe('PUT /workshops/{id}', () => {
 
   it('actualiza un taller válido', async () => {
     mockUpdate.mockResolvedValue(undefined);
+    mockUpsertReminder.mockResolvedValue(undefined);
 
     const res = await handler(makeEvent({ name: 'Actualizado' }) as APIGatewayProxyEvent);
 
     expect(res.statusCode).toBe(200);
     expect(mockUpdate).toHaveBeenCalledWith('WORKSHOP#ws-1', 'META', { name: 'Actualizado' });
+    expect(mockUpsertReminder).toHaveBeenCalled();
   });
 
   it('rechaza reducir la capacidad por debajo de inscritos', async () => {

@@ -8,16 +8,21 @@ jest.mock('../../src/shared/utils/dynamo-client', () => ({
 jest.mock('../../src/events/workshop-cancelled', () => ({
   publishWorkshopCancelled: jest.fn(),
 }));
+jest.mock('../../src/shared/utils/reminder-scheduler', () => ({
+  deleteWorkshopReminderSchedule: jest.fn(),
+}));
 
 // @ts-nocheck
 
 import { handler } from '../../src/handlers/workshops/delete';
 import { getItem, updateItem } from '../../src/shared/utils/dynamo-client';
 import { publishWorkshopCancelled } from '../../src/events/workshop-cancelled';
+import { deleteWorkshopReminderSchedule } from '../../src/shared/utils/reminder-scheduler';
 
 const mockGet = getItem as jest.MockedFunction<typeof getItem>;
 const mockUpdate = updateItem as jest.MockedFunction<typeof updateItem>;
 const mockPublishCancelled = publishWorkshopCancelled as jest.MockedFunction<typeof publishWorkshopCancelled>;
+const mockDeleteReminder = deleteWorkshopReminderSchedule as jest.MockedFunction<typeof deleteWorkshopReminderSchedule>;
 
 const makeEvent = (workshopId: string): Partial<APIGatewayProxyEvent> => ({
   pathParameters: { id: workshopId },
@@ -51,12 +56,14 @@ describe('DELETE /workshops/{id}', () => {
       mode: 'presencial',
     } as never);
     mockUpdate.mockResolvedValue(undefined);
+    mockDeleteReminder.mockResolvedValue(undefined);
     mockPublishCancelled.mockResolvedValue(undefined);
 
     const res = await handler(makeEvent('ws-1') as APIGatewayProxyEvent);
 
     expect(res.statusCode).toBe(204);
     expect(mockUpdate).toHaveBeenCalledWith('WORKSHOP#ws-1', 'META', { status: 'cancelled' });
+    expect(mockDeleteReminder).toHaveBeenCalledWith('ws-1');
     expect(mockPublishCancelled).toHaveBeenCalledWith(expect.objectContaining({
       id: 'ws-1',
       status: 'cancelled',

@@ -98,6 +98,16 @@ describe('PUT /users/{id}', () => {
     expect(mockUpdate).not.toHaveBeenCalled();
   });
 
+  it('rechaza emails inválidos', async () => {
+    mockGet.mockResolvedValue(existingUser as never);
+
+    const res = await handler(makeEvent({ email: 'correo-invalido' }) as APIGatewayProxyEvent);
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).detail).toContain('email inválido');
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
   it('devuelve 403 si el solicitante no es admin', async () => {
     const res = await handler(makeEvent({ givenName: 'Lucia' }, 'student') as APIGatewayProxyEvent);
 

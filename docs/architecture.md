@@ -52,15 +52,21 @@ Usuario (browser)
 
 ### EventsStack (`infra/lib/stacks/events-stack.ts`)
 - **EventBridge custom bus**: `formaton-events-{env}`
-- **Regla activa**: `student.registered` → Lambda `send-confirmation`
+- **Reglas activas**: eventos de negocio conectados a Lambdas con retry y DLQ
 - **Archive**: 90 días en producción para replay
 - **SQS DLQ**: retención 14 días para mensajes fallidos
+
+### SecretStack (`infra/lib/stacks/secret-stack.ts`)
+- **AWS Secrets Manager**: secreto de configuración sensible por entorno
+- **Uso actual**: dirección remitente de SES y placeholders para integraciones externas
+- **Acceso**: solo las Lambdas de notificación con permiso explícito de lectura
 
 ### ApiStack (`infra/lib/stacks/api-stack.ts`)
 - **API Gateway REST** con stage por entorno
 - **Cognito Authorizer** en todas las rutas protegidas
 - **Lambdas Node.js 20.x** con alias `live`, X-Ray, reserva de concurrencia y despliegue progresivo con CodeDeploy
 - **Eventos de dominio** publicados en EventBridge (`workshop.created`, `student.registered`)
+- **Scheduler por taller**: creación/actualización de un recordatorio one-shot 24h antes del `startAt`
 - **IAM least-privilege**: cada Lambda solo accede a lo que necesita
 - **CORS**: configurado por dominio
 
@@ -91,7 +97,7 @@ Usuario (browser)
 | Autorización | API GW Cognito Authorizer + grupos Cognito en handler |
 | Datos en tránsito | TLS 1.2+ obligatorio (CloudFront + API GW) |
 | Datos en reposo | DynamoDB AWS-managed encryption, S3 SSE-S3 |
-| Secretos | Secrets Manager (credenciales externas si aplica) |
+| Secretos | Secrets Manager para configuración sensible de notificaciones e integraciones |
 | IAM | Roles mínimos por Lambda, sin `*` en recursos |
 | CORS | Dominios explícitos, no `*` en producción |
 

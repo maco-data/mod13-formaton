@@ -7,6 +7,8 @@ import { EventsStack } from '../lib/stacks/events-stack';
 import { ApiStack } from '../lib/stacks/api-stack';
 import { FrontStack } from '../lib/stacks/front-stack';
 import { ObservabilityStack } from '../lib/stacks/observability-stack';
+import { BudgetStack } from '../lib/stacks/budget-stack';
+import { SecretStack } from '../lib/stacks/secret-stack';
 import { getEnvConfig } from '../config/environments';
 
 const app = new cdk.App();
@@ -32,6 +34,8 @@ const dataStack = new DataStack(app, `Formaton-Data-${envName}`, { env, config, 
 
 const eventsStack = new EventsStack(app, `Formaton-Events-${envName}`, { env, config, tags });
 
+const secretStack = new SecretStack(app, `Formaton-Secrets-${envName}`, { env, config, tags });
+
 const apiStack = new ApiStack(app, `Formaton-Api-${envName}`, {
   crossRegionReferences: config.envName === 'prod',
   env, config, tags,
@@ -39,6 +43,8 @@ const apiStack = new ApiStack(app, `Formaton-Api-${envName}`, {
   table: dataStack.table,
   evidencesBucket: dataStack.evidencesBucket,
   eventBus: eventsStack.eventBus,
+  dlq: eventsStack.dlq,
+  appSecret: secretStack.appSecret,
 });
 
 const frontStack = new FrontStack(app, `Formaton-Front-${envName}`, {
@@ -56,6 +62,13 @@ new ObservabilityStack(app, `Formaton-Observability-${envName}`, {
   api: apiStack.api,
   lambdaFunctions: apiStack.lambdaFunctions,
   table: dataStack.table,
+  dlq: eventsStack.dlq,
+});
+
+new BudgetStack(app, `Formaton-Budget-${envName}`, {
+  env: { account: env.account, region: 'us-east-1' },
+  config,
+  tags,
 });
 
 app.synth();

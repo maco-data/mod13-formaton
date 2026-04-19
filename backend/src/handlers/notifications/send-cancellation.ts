@@ -4,6 +4,7 @@ import { getItem, queryItems } from '../../shared/utils/dynamo-client';
 import { Workshop } from '../../shared/models/workshop.model';
 import { Registration } from '../../shared/models/registration.model';
 import { User } from '../../shared/models/user.model';
+import { getSesFromAddress } from '../../shared/utils/app-config';
 
 const ses = new SESClient({});
 
@@ -45,6 +46,7 @@ export const handler = async (event: EventBridgeEvent<'workshop.cancelled', Work
     hour: '2-digit',
     minute: '2-digit',
   });
+  const sourceAddress = await getSesFromAddress();
 
   const results = await Promise.allSettled(
     activeRegistrations.map(async (registration) => {
@@ -55,7 +57,7 @@ export const handler = async (event: EventBridgeEvent<'workshop.cancelled', Work
       }
 
       await ses.send(new SendEmailCommand({
-        Source: process.env.SES_FROM ?? 'formaton@tuempresa.es',
+        Source: sourceAddress,
         Destination: { ToAddresses: [user.email] },
         Message: {
           Subject: { Data: `Cancelación de formación: ${workshop.name}` },

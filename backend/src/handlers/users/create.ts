@@ -5,6 +5,7 @@ import { badRequest, created } from '../../shared/utils/response';
 import { withErrorHandler } from '../../shared/middleware/error-handler';
 import { requireAdmin } from '../../shared/middleware/auth';
 import { User, UserRole } from '../../shared/models/user.model';
+import { normalizeUserInput, validateCreateUserInput } from '../../shared/validation/user';
 
 type CreateUserInput = {
   email?: string;
@@ -30,19 +31,10 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
     return badRequest('JSON inválido');
   }
 
-  const email = input.email?.trim().toLowerCase();
-  const givenName = input.givenName?.trim();
-  const familyName = input.familyName?.trim();
-  const department = input.department?.trim();
-  const role = input.role ?? 'student';
-
-  if (!email || !givenName || !familyName || !department) {
-    return badRequest('Campos requeridos: email, givenName, familyName, department');
-  }
-
-  if (!['admin', 'manager', 'student'].includes(role)) {
-    return badRequest('Rol inválido');
-  }
+  const normalized = normalizeUserInput(input);
+  const role = normalized.role ?? 'student';
+  const validationError = validateCreateUserInput({ ...normalized, role });
+  if (validationError) return badRequest(validationError);
 
   const now = new Date().toISOString();
   const id = randomUUID();
@@ -51,11 +43,11 @@ export const handler = withErrorHandler(async (event: APIGatewayProxyEvent): Pro
     PK: `USER#${id}`,
     SK: 'META',
     id,
-    email,
-    givenName,
-    familyName,
-    fullName: `${givenName} ${familyName}`.trim(),
-    department,
+    email: normalized.email!,
+    givenName: normalized.givenName!,
+    familyName: normalized.familyName!,
+    fullName: `${normalized.givenName!} ${normalized.familyName!}`.trim(),
+    department: normalized.department!,
     role,
     active: true,
     createdAt: now,

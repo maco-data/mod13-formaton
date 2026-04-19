@@ -113,6 +113,8 @@ Inscribe al usuario autenticado. Idempotente.
 **Respuesta 200** si la inscripción ya existía y sigue confirmada.
 **Respuesta 409:** Taller completo o ya finalizado.
 
+La creación, reprogramación o cancelación del taller ajusta automáticamente un recordatorio 24h antes mediante EventBridge Scheduler.
+
 ---
 
 ### `DELETE /workshops/{id}/register` — Student / Admin
@@ -182,6 +184,58 @@ Lista las inscripciones de un usuario. Admin puede consultar cualquier usuario; 
 ```
 
 Cada inscripción puede incluir `workshop` con el detalle del taller asociado.
+
+---
+
+## Evidencias y Archivos
+
+### `POST /evidences/presign-upload` — Admin
+Genera una URL firmada temporal para subir un archivo al bucket privado de evidencias mediante `PUT`.
+
+**Body:**
+```json
+{
+  "fileName": "brochure-prl.pdf",
+  "contentType": "application/pdf",
+  "folder": "brochures"
+}
+```
+
+**Respuesta 200:**
+```json
+{
+  "fileKey": "brochures/1710000000000-brochure-prl.pdf",
+  "uploadUrl": "https://...",
+  "expiresIn": 900,
+  "method": "PUT",
+  "headers": {
+    "Content-Type": "application/pdf"
+  }
+}
+```
+
+---
+
+### `POST /evidences/presign-download` — Admin
+Genera una URL firmada temporal para descargar un archivo existente del bucket privado de evidencias.
+
+**Body:**
+```json
+{
+  "fileKey": "brochures/1710000000000-brochure-prl.pdf",
+  "downloadName": "brochure-prl.pdf"
+}
+```
+
+**Respuesta 200:**
+```json
+{
+  "fileKey": "brochures/1710000000000-brochure-prl.pdf",
+  "downloadUrl": "https://...",
+  "expiresIn": 900,
+  "method": "GET"
+}
+```
 
 ---
 

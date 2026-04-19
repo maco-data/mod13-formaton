@@ -9,6 +9,9 @@ import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as scheduler from 'aws-cdk-lib/aws-scheduler';
 import { Construct } from 'constructs';
 import { EnvConfig } from '../../config/environments';
 import { FormatonLambda } from '../constructs/lambda-construct';
@@ -20,6 +23,8 @@ interface ApiStackProps extends cdk.StackProps {
   table: dynamodb.Table;
   evidencesBucket: s3.Bucket;
   eventBus: events.EventBus;
+  dlq: sqs.Queue;
+  appSecret: secretsmanager.ISecret;
 }
 
 export class ApiStack extends cdk.Stack {
@@ -40,6 +45,8 @@ export class ApiStack extends cdk.Stack {
       EVENT_BUS_NAME: props.eventBus.eventBusName,
       ENV: props.config.envName,
       LOG_LEVEL: props.config.envName === 'prod' ? 'WARN' : 'DEBUG',
+      REMINDER_SCHEDULE_DLQ_ARN: props.dlq.queueArn,
+      APP_CONFIG_SECRET_ID: props.appSecret.secretArn,
     };
 
     // ── Lambda factory helper ─────────────────────────────────────────────
@@ -77,6 +84,8 @@ export class ApiStack extends cdk.Stack {
     const updateUser          = fn('UpdateUser',          'handlers/users/update.handler',               'PUT /users/{id} (admin)');
     const deleteUser          = fn('DeleteUser',          'handlers/users/delete.handler',               'DELETE /users/{id} (admin)');
     const listUserRegistrations = fn('ListUserRegistrations', 'handlers/users/registrations.handler',   'GET /users/{id}/registrations');
+    const presignEvidenceUpload = fn('PresignEvidenceUpload', 'handlers/evidences/presign-upload.handler', 'POST /evidences/presign-upload (admin)');
+    const presignEvidenceDownload = fn('PresignEvidenceDownload', 'handlers/evidences/presign-download.handler', 'POST /evidences/presign-download (admin)');
     const healthz             = fn('Healthz',             'handlers/healthz/get.handler',                'GET /healthz');
     const sendConfirmation    = fn('SendConfirmation',    'handlers/notifications/send-confirmation.handler', 'Notificación de inscripción');
     const sendReminder        = fn('SendReminder',        'handlers/notifications/send-reminder.handler',    'Recordatorio 24h antes');
@@ -89,8 +98,61 @@ export class ApiStack extends cdk.Stack {
       registerStudent, unregisterStudent, listRegistrations,
       issueCert, listCerts, verifyCert,
       listUsers, getUser, createUser, updateUser, deleteUser, listUserRegistrations,
+      presignEvidenceUpload, presignEvidenceDownload,
       sendConfirmation, sendReminder, sendCancellation, dispatchReminders,
     ];
+
+    const reminderScheduleGroup = new scheduler.CfnScheduleGroup(this, 'ReminderScheduleGroup', {
+      name: `formaton-reminders-${props.config.envName}`,
+    });
+
+    const schedulerInvokeRole = new iam.Role(this, 'ReminderSchedulerInvokeRole', {
+      assumedBy: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+      description: 'Permite a EventBridge Scheduler invocar la Lambda de recordatorios de Formaton',
+    });
+
+    const reminderTarget = integrationTarget(sendReminder);
+    reminderTarget.grantInvoke(schedulerInvokeRole);
+
+    reminderTarget.addPermission('AllowSchedulerInvokeReminder', {
+      principal: new iam.ServicePrincipal('scheduler.amazonaws.com'),
+      action: 'lambda:InvokeFunction',
+      sourceArn: cdk.Stack.of(this).formatArn({
+        service: 'scheduler',
+        resource: 'schedule',
+        resourceName: `${reminderScheduleGroup.name}/*`,
+      }),
+    });
+
+    [createWorkshop.fn, updateWorkshop.fn, deleteWorkshop.fn].forEach((handlerFn) => {
+      handlerFn.addEnvironment('REMINDER_SCHEDULE_GROUP', reminderScheduleGroup.name!);
+      handlerFn.addEnvironment('REMINDER_TARGET_ARN', reminderTarget.functionArn);
+      handlerFn.addEnvironment('REMINDER_SCHEDULE_ROLE_ARN', schedulerInvokeRole.roleArn);
+      handlerFn.addToRolePolicy(new iam.PolicyStatement({
+        actions: [
+          'scheduler:CreateSchedule',
+          'scheduler:UpdateSchedule',
+          'scheduler:DeleteSchedule',
+          'scheduler:GetSchedule',
+        ],
+        resources: [
+          cdk.Stack.of(this).formatArn({
+            service: 'scheduler',
+            resource: 'schedule',
+            resourceName: `${reminderScheduleGroup.name}/*`,
+          }),
+          cdk.Stack.of(this).formatArn({
+            service: 'scheduler',
+            resource: 'schedule-group',
+            resourceName: reminderScheduleGroup.name!,
+          }),
+        ],
+      }));
+      handlerFn.addToRolePolicy(new iam.PolicyStatement({
+        actions: ['iam:PassRole'],
+        resources: [schedulerInvokeRole.roleArn],
+      }));
+    });
 
     this.lambdaFunctions = handlers.map(handler => handler.fn);
     this.lambdaAliases = handlers
@@ -105,9 +167,10 @@ export class ApiStack extends cdk.Stack {
     tableReadFns.forEach(f  => props.table.grantReadData(f));
     tableWriteFns.forEach(f => props.table.grantWriteData(f));
     eventFns.forEach(f      => props.eventBus.grantPutEventsTo(f));
-    [issueCert.fn, listCerts.fn].forEach(f => props.evidencesBucket.grantReadWrite(f));
+    [issueCert.fn, listCerts.fn, presignEvidenceUpload.fn, presignEvidenceDownload.fn].forEach(f => props.evidencesBucket.grantReadWrite(f));
     [sendConfirmation.fn, sendReminder.fn, sendCancellation.fn].forEach(f => {
       props.table.grantReadData(f);
+      props.appSecret.grantRead(f);
       f.addToRolePolicy(new iam.PolicyStatement({
         actions: ['ses:SendEmail', 'ses:SendRawEmail'],
         resources: ['*'],
@@ -154,17 +217,11 @@ export class ApiStack extends cdk.Stack {
         source: ['formaton.app'],
         detailType: ['student.registered'],
       },
-      targets: [new targets.LambdaFunction(integrationTarget(sendConfirmation))],
-    });
-
-    new events.Rule(this, 'Reminder24hRule', {
-      eventBus: props.eventBus,
-      description: 'Dispara los recordatorios 24h antes del taller',
-      eventPattern: {
-        source: ['formaton.app'],
-        detailType: ['reminder.24h'],
-      },
-      targets: [new targets.LambdaFunction(integrationTarget(sendReminder))],
+      targets: [new targets.LambdaFunction(integrationTarget(sendConfirmation), {
+        deadLetterQueue: props.dlq,
+        retryAttempts: 2,
+        maxEventAge: cdk.Duration.hours(2),
+      })],
     });
 
     new events.Rule(this, 'WorkshopCancelledRule', {
@@ -174,14 +231,15 @@ export class ApiStack extends cdk.Stack {
         source: ['formaton.app'],
         detailType: ['workshop.cancelled'],
       },
-      targets: [new targets.LambdaFunction(integrationTarget(sendCancellation))],
+      targets: [new targets.LambdaFunction(integrationTarget(sendCancellation), {
+        deadLetterQueue: props.dlq,
+        retryAttempts: 2,
+        maxEventAge: cdk.Duration.hours(2),
+      })],
     });
 
-    new events.Rule(this, 'DispatchRemindersScheduleRule', {
-      description: 'Escanea cada hora los talleres que requieren recordatorio 24h antes',
-      schedule: events.Schedule.rate(cdk.Duration.hours(1)),
-      targets: [new targets.LambdaFunction(integrationTarget(dispatchReminders))],
-    });
+    // Los recordatorios 24h se gestionan mediante EventBridge Scheduler one-shot
+    // por taller, creado/actualizado desde los handlers de workshops.
 
     // ── API Gateway ───────────────────────────────────────────────────────
     this.api = new apigateway.RestApi(this, 'FormatonApi', {
@@ -271,6 +329,97 @@ export class ApiStack extends cdk.Stack {
       validateRequestParameters: true,
     });
 
+    const userRequestProperties: Record<string, apigateway.JsonSchema> = {
+      email: { type: apigateway.JsonSchemaType.STRING, minLength: 5 },
+      givenName: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+      familyName: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+      department: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+      role: { type: apigateway.JsonSchemaType.STRING, enum: ['admin', 'manager', 'student'] },
+      active: { type: apigateway.JsonSchemaType.BOOLEAN },
+    };
+
+    const userCreateModel = new apigateway.Model(this, 'UserCreateRequestModel', {
+      restApi: this.api,
+      contentType: 'application/json',
+      modelName: `UserCreateRequest${props.config.envName}`,
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'UserCreateRequest',
+        type: apigateway.JsonSchemaType.OBJECT,
+        required: ['email', 'givenName', 'familyName', 'department'],
+        additionalProperties: false,
+        properties: userRequestProperties,
+      },
+    });
+
+    const userPatchModel = new apigateway.Model(this, 'UserPatchRequestModel', {
+      restApi: this.api,
+      contentType: 'application/json',
+      modelName: `UserPatchRequest${props.config.envName}`,
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'UserPatchRequest',
+        type: apigateway.JsonSchemaType.OBJECT,
+        minProperties: 1,
+        additionalProperties: false,
+        properties: userRequestProperties,
+      },
+    });
+
+    const certIssueModel = new apigateway.Model(this, 'CertIssueRequestModel', {
+      restApi: this.api,
+      contentType: 'application/json',
+      modelName: `CertIssueRequest${props.config.envName}`,
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'CertIssueRequest',
+        type: apigateway.JsonSchemaType.OBJECT,
+        required: ['userId', 'workshopId'],
+        additionalProperties: false,
+        properties: {
+          userId: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+          workshopId: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+          score: { type: apigateway.JsonSchemaType.NUMBER, minimum: 0, maximum: 100 },
+          expiresAt: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+        },
+      },
+    });
+
+    const evidenceUploadModel = new apigateway.Model(this, 'EvidenceUploadRequestModel', {
+      restApi: this.api,
+      contentType: 'application/json',
+      modelName: `EvidenceUploadRequest${props.config.envName}`,
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'EvidenceUploadRequest',
+        type: apigateway.JsonSchemaType.OBJECT,
+        required: ['fileName', 'contentType'],
+        additionalProperties: false,
+        properties: {
+          fileName: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+          contentType: { type: apigateway.JsonSchemaType.STRING, minLength: 3 },
+          folder: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+        },
+      },
+    });
+
+    const evidenceDownloadModel = new apigateway.Model(this, 'EvidenceDownloadRequestModel', {
+      restApi: this.api,
+      contentType: 'application/json',
+      modelName: `EvidenceDownloadRequest${props.config.envName}`,
+      schema: {
+        schema: apigateway.JsonSchemaVersion.DRAFT4,
+        title: 'EvidenceDownloadRequest',
+        type: apigateway.JsonSchemaType.OBJECT,
+        required: ['fileKey'],
+        additionalProperties: false,
+        properties: {
+          fileKey: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+          downloadName: { type: apigateway.JsonSchemaType.STRING, minLength: 1 },
+        },
+      },
+    });
+
     // ── Routes ────────────────────────────────────────────────────────────
     // GET  /workshops              — público, cacheable
     // GET  /workshops/{id}         — público
@@ -309,20 +458,44 @@ export class ApiStack extends cdk.Stack {
 
     const certs = this.api.root.addResource('certs');
     certs.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(listCerts)), authOptions);
-    certs.addResource('issue').addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(issueCert)), authOptions);
+    certs.addResource('issue').addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(issueCert)), {
+      ...authOptions,
+      requestValidator,
+      requestModels: { 'application/json': certIssueModel },
+    });
 
     const cert = certs.addResource('{id}');
     cert.addResource('verify').addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(verifyCert)), publicOptions);
 
     const users = this.api.root.addResource('users');
     users.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(listUsers)), authOptions);
-    users.addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(createUser)), authOptions);
+    users.addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(createUser)), {
+      ...authOptions,
+      requestValidator,
+      requestModels: { 'application/json': userCreateModel },
+    });
 
     const user = users.addResource('{id}');
     user.addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(getUser)), authOptions);
-    user.addMethod('PUT', new apigateway.LambdaIntegration(integrationTarget(updateUser)), authOptions);
+    user.addMethod('PUT', new apigateway.LambdaIntegration(integrationTarget(updateUser)), {
+      ...authOptions,
+      requestValidator,
+      requestModels: { 'application/json': userPatchModel },
+    });
     user.addMethod('DELETE', new apigateway.LambdaIntegration(integrationTarget(deleteUser)), authOptions);
     user.addResource('registrations').addMethod('GET', new apigateway.LambdaIntegration(integrationTarget(listUserRegistrations)), authOptions);
+
+    const evidences = this.api.root.addResource('evidences');
+    evidences.addResource('presign-upload').addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(presignEvidenceUpload)), {
+      ...authOptions,
+      requestValidator,
+      requestModels: { 'application/json': evidenceUploadModel },
+    });
+    evidences.addResource('presign-download').addMethod('POST', new apigateway.LambdaIntegration(integrationTarget(presignEvidenceDownload)), {
+      ...authOptions,
+      requestValidator,
+      requestModels: { 'application/json': evidenceDownloadModel },
+    });
 
     this.apiUrl = this.api.url;
 

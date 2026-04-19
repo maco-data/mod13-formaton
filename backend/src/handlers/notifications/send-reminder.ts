@@ -4,6 +4,7 @@ import { queryItems, getItem } from '../../shared/utils/dynamo-client';
 import { User } from '../../shared/models/user.model';
 import { Workshop } from '../../shared/models/workshop.model';
 import { Registration } from '../../shared/models/registration.model';
+import { getSesFromAddress } from '../../shared/utils/app-config';
 
 const ses = new SESClient({});
 
@@ -37,6 +38,7 @@ export const handler = async (event: EventBridgeEvent<'reminder.24h', ReminderPa
   const startDate = new Date(workshop.startAt).toLocaleDateString('es-ES', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
+  const sourceAddress = await getSesFromAddress();
 
   const results = await Promise.allSettled(
     registrations.map(async (reg) => {
@@ -44,7 +46,7 @@ export const handler = async (event: EventBridgeEvent<'reminder.24h', ReminderPa
       if (!user) return;
 
       await ses.send(new SendEmailCommand({
-        Source: process.env.SES_FROM ?? 'formaton@tuempresa.es',
+        Source: sourceAddress,
         Destination: { ToAddresses: [user.email] },
         Message: {
           Subject: { Data: `⏰ Recordatorio: ${workshop.name} — mañana` },

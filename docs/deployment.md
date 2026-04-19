@@ -67,24 +67,14 @@ En local, usar `VITE_API_URL=/api` para que el frontend pase por CloudFront y qu
 
 ## 5. Configurar presupuesto AWS (obligatorio)
 
-```bash
-aws budgets create-budget \
-  --account-id $(aws sts get-caller-identity --query Account --output text) \
-  --budget '{
-    "BudgetName": "formaton-monthly",
-    "BudgetLimit": {"Amount": "50", "Unit": "USD"},
-    "TimeUnit": "MONTHLY",
-    "BudgetType": "COST"
-  }' \
-  --notifications-with-subscribers '[{
-    "Notification": {
-      "NotificationType": "ACTUAL",
-      "ComparisonOperator": "GREATER_THAN",
-      "Threshold": 80
-    },
-    "Subscribers": [{"SubscriptionType": "EMAIL", "Address": "ops@tuempresa.es"}]
-  }]'
-```
+El presupuesto mensual se crea ahora desde CDK en `BudgetStack`.
+
+Antes de desplegar, revisar en `infra/config/environments.ts`:
+- `budgetMonthlyUsd`
+- `budgetAlertThresholdPct`
+- `budgetAlertEmails`
+
+El stack crea alertas por coste **actual** y **forecasted** al umbral configurado, filtradas por tags del proyecto.
 
 ---
 

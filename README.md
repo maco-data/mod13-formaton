@@ -37,9 +37,11 @@ formaton/
 | `AuthStack` | Cognito User Pool, App Client, Hosted UI |
 | `DataStack` | DynamoDB tabla única + GSIs, S3 evidencias |
 | `EventsStack` | EventBridge bus, reglas, Scheduler, SQS DLQ |
+| `SecretStack` | Secrets Manager para configuración sensible de notificaciones |
 | `ApiStack` | API Gateway REST, Lambdas, CodeDeploy blue/green |
 | `FrontStack` | S3 hosting, CloudFront OAC, ACM, WAF, Route 53 |
 | `ObservabilityStack` | CloudWatch Logs/Metrics/Alarms, X-Ray, Dashboards |
+| `BudgetStack` | AWS Budgets mensual con alertas por e-mail |
 
 ## Requisitos
 
@@ -66,6 +68,11 @@ npm run deploy:prod
 ## Variables de entorno
 
 Ver `frontend/.env.example`, `frontend/.env.local` y `infra/config/environments.ts`.
+
+Para presupuestos, ajustar por entorno:
+- `budgetMonthlyUsd`
+- `budgetAlertThresholdPct`
+- `budgetAlertEmails`
 
 ## CI/CD
 
