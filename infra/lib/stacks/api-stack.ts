@@ -3,17 +3,15 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as events from 'aws-cdk-lib/aws-events';
-import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
 import * as codedeploy from 'aws-cdk-lib/aws-codedeploy';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as scheduler from 'aws-cdk-lib/aws-scheduler';
 import { Construct } from 'constructs';
 import { EnvConfig } from '../../config/environments';
+import { CONSTANTS } from '../../config/constants';
 import { FormatonLambda } from '../constructs/lambda-construct';
 
 interface ApiStackProps extends cdk.StackProps {
@@ -22,8 +20,6 @@ interface ApiStackProps extends cdk.StackProps {
   userPool: cognito.UserPool;
   table: dynamodb.Table;
   evidencesBucket: s3.Bucket;
-  eventBus: events.EventBus;
-  dlq: sqs.Queue;
   appSecret: secretsmanager.ISecret;
 }
 
@@ -32,20 +28,34 @@ export class ApiStack extends cdk.Stack {
   public readonly apiUrl: string;
   public readonly lambdaFunctions: lambda.Function[];
   public readonly lambdaAliases: lambda.Alias[];
+  public readonly sendConfirmationTarget: lambda.IFunction;
+  public readonly sendCancellationTarget: lambda.IFunction;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
     Object.entries(props.tags).forEach(([k, v]) => cdk.Tags.of(this).add(k, v));
 
+    const eventBusName = `${CONSTANTS.EVENT_BUS_NAME}-${props.config.envName}`;
+    const eventBusArn = cdk.Stack.of(this).formatArn({
+      service: 'events',
+      resource: 'event-bus',
+      resourceName: eventBusName,
+    });
+    const dlqName = `formaton-dlq-${props.config.envName}`;
+    const dlqArn = cdk.Stack.of(this).formatArn({
+      service: 'sqs',
+      resource: dlqName,
+    });
+
     // ── Shared Lambda environment ─────────────────────────────────────────
     const sharedEnv = {
       TABLE_NAME: props.table.tableName,
       EVIDENCES_BUCKET: props.evidencesBucket.bucketName,
-      EVENT_BUS_NAME: props.eventBus.eventBusName,
+      EVENT_BUS_NAME: eventBusName,
       ENV: props.config.envName,
       LOG_LEVEL: props.config.envName === 'prod' ? 'WARN' : 'DEBUG',
-      REMINDER_SCHEDULE_DLQ_ARN: props.dlq.queueArn,
+      REMINDER_SCHEDULE_DLQ_ARN: dlqArn,
       APP_CONFIG_SECRET_ID: props.appSecret.secretArn,
     };
 
@@ -112,6 +122,8 @@ export class ApiStack extends cdk.Stack {
     });
 
     const reminderTarget = integrationTarget(sendReminder);
+    this.sendConfirmationTarget = integrationTarget(sendConfirmation);
+    this.sendCancellationTarget = integrationTarget(sendCancellation);
     reminderTarget.grantInvoke(schedulerInvokeRole);
 
     reminderTarget.addPermission('AllowSchedulerInvokeReminder', {
@@ -166,7 +178,12 @@ export class ApiStack extends cdk.Stack {
 
     tableReadFns.forEach(f  => props.table.grantReadData(f));
     tableWriteFns.forEach(f => props.table.grantWriteData(f));
-    eventFns.forEach(f      => props.eventBus.grantPutEventsTo(f));
+    eventFns.forEach(f => {
+      f.addToRolePolicy(new iam.PolicyStatement({
+        actions: ['events:PutEvents'],
+        resources: [eventBusArn],
+      }));
+    });
     [issueCert.fn, listCerts.fn, presignEvidenceUpload.fn, presignEvidenceDownload.fn].forEach(f => props.evidencesBucket.grantReadWrite(f));
     [sendConfirmation.fn, sendReminder.fn, sendCancellation.fn].forEach(f => {
       props.table.grantReadData(f);
@@ -208,38 +225,6 @@ export class ApiStack extends cdk.Stack {
         },
       });
     });
-
-    // ── EventBridge rules ─────────────────────────────────────────────────
-    new events.Rule(this, 'StudentRegisteredRule', {
-      eventBus: props.eventBus,
-      description: 'Dispara la notificación de confirmación al registrarse un estudiante',
-      eventPattern: {
-        source: ['formaton.app'],
-        detailType: ['student.registered'],
-      },
-      targets: [new targets.LambdaFunction(integrationTarget(sendConfirmation), {
-        deadLetterQueue: props.dlq,
-        retryAttempts: 2,
-        maxEventAge: cdk.Duration.hours(2),
-      })],
-    });
-
-    new events.Rule(this, 'WorkshopCancelledRule', {
-      eventBus: props.eventBus,
-      description: 'Dispara la notificación a inscritos cuando se cancela una formación',
-      eventPattern: {
-        source: ['formaton.app'],
-        detailType: ['workshop.cancelled'],
-      },
-      targets: [new targets.LambdaFunction(integrationTarget(sendCancellation), {
-        deadLetterQueue: props.dlq,
-        retryAttempts: 2,
-        maxEventAge: cdk.Duration.hours(2),
-      })],
-    });
-
-    // Los recordatorios 24h se gestionan mediante EventBridge Scheduler one-shot
-    // por taller, creado/actualizado desde los handlers de workshops.
 
     // ── API Gateway ───────────────────────────────────────────────────────
     this.api = new apigateway.RestApi(this, 'FormatonApi', {

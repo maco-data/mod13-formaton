@@ -9,6 +9,7 @@ import { FrontStack } from '../lib/stacks/front-stack';
 import { ObservabilityStack } from '../lib/stacks/observability-stack';
 import { BudgetStack } from '../lib/stacks/budget-stack';
 import { SecretStack } from '../lib/stacks/secret-stack';
+import { EventTargetsStack } from '../lib/stacks/event-targets-stack';
 import { getEnvConfig } from '../config/environments';
 
 const app = new cdk.App();
@@ -42,8 +43,6 @@ const apiStack = new ApiStack(app, `Formaton-Api-${envName}`, {
   userPool: authStack.userPool,
   table: dataStack.table,
   evidencesBucket: dataStack.evidencesBucket,
-  eventBus: eventsStack.eventBus,
-  dlq: eventsStack.dlq,
   appSecret: secretStack.appSecret,
 });
 
@@ -55,6 +54,14 @@ const frontStack = new FrontStack(app, `Formaton-Front-${envName}`, {
   apiUrl: apiStack.apiUrl,
   userPoolId: authStack.userPool.userPoolId,
   userPoolClientId: authStack.userPoolClientId,
+});
+
+new EventTargetsStack(app, `Formaton-EventTargets-${envName}`, {
+  env,
+  config,
+  tags,
+  sendConfirmationTarget: apiStack.sendConfirmationTarget,
+  sendCancellationTarget: apiStack.sendCancellationTarget,
 });
 
 new ObservabilityStack(app, `Formaton-Observability-${envName}`, {
