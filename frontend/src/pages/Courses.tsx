@@ -21,6 +21,18 @@ interface RegistrationItem {
   userEmail?: string;
 }
 
+function resolveParticipantName(participant: { fullName?: string; givenName?: string; familyName?: string; email?: string }, fallbackId: string) {
+  const fullName = participant.fullName?.trim();
+  if (fullName) return fullName;
+
+  const givenName = participant.givenName?.trim() ?? '';
+  const familyName = participant.familyName?.trim() ?? '';
+  const merged = `${givenName} ${familyName}`.trim();
+  if (merged) return merged;
+
+  return participant.email?.trim() || fallbackId;
+}
+
 const FILTERS = [
   { key: 'all', label: 'Todas' },
   { key: 'scheduled', label: 'Activas' },
@@ -127,7 +139,7 @@ export default function Courses() {
             const participant = await participantsService.get(item.userId);
             return {
               ...item,
-              userName: participant.fullName || `${participant.givenName} ${participant.familyName}`.trim(),
+              userName: resolveParticipantName(participant, item.userId),
               userEmail: participant.email,
             };
           } catch {
