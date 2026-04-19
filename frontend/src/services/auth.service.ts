@@ -9,7 +9,6 @@ import {
   signOut,
   fetchAuthSession,
   getCurrentUser,
-  fetchUserAttributes,
   confirmSignIn,
   resetPassword,
   confirmResetPassword,
@@ -69,22 +68,21 @@ export async function getIdToken(): Promise<string | null> {
 
 export async function getCurrentFormatonUser(): Promise<FormatonUser | null> {
   try {
-    await getCurrentUser();
-    const attrs = await fetchUserAttributes();
     const session = await fetchAuthSession();
+    const currentUser = await getCurrentUser();
     const groups: string[] = (session.tokens?.accessToken?.payload['cognito:groups'] as string[]) ?? [];
     const idPayload = session.tokens?.idToken?.payload;
-    const email = attrs.email ?? String(idPayload?.email ?? '');
-    const givenName = attrs.given_name ?? String(idPayload?.given_name ?? '');
-    const familyName = attrs.family_name ?? String(idPayload?.family_name ?? '');
-    const sub = attrs.sub ?? String(idPayload?.sub ?? '');
+    const email = String(idPayload?.email ?? currentUser.signInDetails?.loginId ?? '');
+    const givenName = String(idPayload?.given_name ?? '');
+    const familyName = String(idPayload?.family_name ?? '');
+    const sub = String(idPayload?.sub ?? currentUser.userId ?? '');
 
     return {
       sub,
       email,
       givenName,
       familyName,
-      department: attrs['custom:department'] ?? (String(idPayload?.['custom:department'] ?? '') || undefined),
+      department: String(idPayload?.['custom:department'] ?? '') || undefined,
       role: (groups.includes('admin') ? 'admin' : groups.includes('manager') ? 'manager' : 'student'),
       groups,
     };

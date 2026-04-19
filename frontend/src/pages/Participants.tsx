@@ -48,6 +48,24 @@ const EMPTY_FORM: CreateParticipantPayload = {
   role: 'student',
 };
 
+function mergeAuthProfile(user: NonNullable<ReturnType<typeof useAuth>['user']>, profile?: Participant | null): Participant {
+  const givenName = profile?.givenName?.trim() || user.givenName?.trim() || '';
+  const familyName = profile?.familyName?.trim() || user.familyName?.trim() || '';
+  const fullName = profile?.fullName?.trim() || `${givenName} ${familyName}`.trim() || user.email;
+
+  return {
+    id: profile?.id || user.sub,
+    email: profile?.email?.trim() || user.email,
+    givenName,
+    familyName,
+    fullName,
+    department: profile?.department?.trim() || user.department || 'Sin departamento',
+    role: profile?.role || user.role,
+    active: profile?.active ?? true,
+    createdAt: profile?.createdAt || new Date().toISOString(),
+  };
+}
+
 export default function Participants() {
   const [search, setSearch] = useState('');
   const [dept, setDept] = useState('Todos');
@@ -62,10 +80,11 @@ export default function Participants() {
   const { isAdmin, user } = useAuth();
   const { participants, loading, error, create, update, deactivate, reload } = useParticipants({ enabled: isAdmin });
 
-  const ownParticipant = useMemo(
-    () => selfParticipant ?? participants.find((participant) => participant.id === user?.sub || participant.email === user?.email) ?? null,
-    [participants, selfParticipant, user?.email, user?.sub]
-  );
+  const ownParticipant = useMemo(() => {
+    if (!user) return null;
+    const matchedParticipant = selfParticipant ?? participants.find((participant) => participant.id === user.sub || participant.email === user.email) ?? null;
+    return mergeAuthProfile(user, matchedParticipant);
+  }, [participants, selfParticipant, user]);
   const ownParticipantName = ownParticipant
     ? ownParticipant.fullName || `${ownParticipant.givenName ?? ''} ${ownParticipant.familyName ?? ''}`.trim() || ownParticipant.email
     : user
@@ -76,20 +95,10 @@ export default function Participants() {
     if (isAdmin || !user?.sub) return;
     void participantsService
       .get(user.sub)
-      .then(setSelfParticipant)
+      .then((participant) => setSelfParticipant(mergeAuthProfile(user, participant)))
       .catch(() => {
         if (!user) return;
-        setSelfParticipant({
-          id: user.sub,
-          email: user.email,
-          givenName: user.givenName,
-          familyName: user.familyName,
-          fullName: `${user.givenName} ${user.familyName}`.trim(),
-          department: user.department ?? 'Sin departamento',
-          role: user.role,
-          active: true,
-          createdAt: new Date().toISOString(),
-        });
+        setSelfParticipant(mergeAuthProfile(user));
       });
   }, [isAdmin, user]);
 
