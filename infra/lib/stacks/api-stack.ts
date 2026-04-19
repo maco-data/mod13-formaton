@@ -172,7 +172,7 @@ export class ApiStack extends cdk.Stack {
       .filter((alias): alias is lambda.Alias => Boolean(alias));
 
     // ── IAM permissions ───────────────────────────────────────────────────
-    const tableReadFns  = [listWorkshops, getWorkshop, listRegistrations, listCerts, verifyCert, registerStudent, listUsers, getUser, issueCert, deleteWorkshop, dispatchReminders, listUserRegistrations].map(handler => handler.fn);
+    const tableReadFns  = [listWorkshops, getWorkshop, updateWorkshop, deleteWorkshop, listRegistrations, listCerts, verifyCert, registerStudent, unregisterStudent, listUsers, getUser, issueCert, updateUser, deleteUser, dispatchReminders, listUserRegistrations].map(handler => handler.fn);
     const tableWriteFns = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, createUser, updateUser, deleteUser, dispatchReminders].map(handler => handler.fn);
     const eventFns      = [createWorkshop, updateWorkshop, deleteWorkshop, registerStudent, unregisterStudent, issueCert, dispatchReminders].map(handler => handler.fn);
 

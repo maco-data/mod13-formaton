@@ -12,10 +12,10 @@ async function getToken(): Promise<string | null> {
   if (storedToken) return storedToken;
 
   try {
-    const { getAccessToken } = await import('./auth.service');
-    return await getAccessToken();
+    const { getIdToken } = await import('./auth.service');
+    return await getIdToken();
   } catch {
-    return localStorage.getItem('formaton_access_token') ?? localStorage.getItem('formaton_id_token');
+    return localStorage.getItem('formaton_id_token');
   }
 }
 

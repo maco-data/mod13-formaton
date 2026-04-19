@@ -68,9 +68,9 @@ export function useAuth() {
       }
 
       try {
-        const { configureAmplify, getCurrentFormatonUser, getAccessToken } = await import('../services/auth.service');
+        const { configureAmplify, getCurrentFormatonUser, getIdToken } = await import('../services/auth.service');
         configureAmplify();
-        const [user, token] = await Promise.all([getCurrentFormatonUser(), getAccessToken()]);
+        const [user, token] = await Promise.all([getCurrentFormatonUser(), getIdToken()]);
         setSession(user, token);
       } catch {
         setSession(null, null);
@@ -121,10 +121,10 @@ export function useAuth() {
     }
 
     try {
-      const { configureAmplify, login, getCurrentFormatonUser, getAccessToken } = await import('../services/auth.service');
+      const { configureAmplify, login, getCurrentFormatonUser, getIdToken } = await import('../services/auth.service');
       configureAmplify();
       await login(email, password);
-      const [user, token] = await Promise.all([getCurrentFormatonUser(), getAccessToken()]);
+      const [user, token] = await Promise.all([getCurrentFormatonUser(), getIdToken()]);
       setSession(user, token);
       setInitialized(true);
       setLoading(false);

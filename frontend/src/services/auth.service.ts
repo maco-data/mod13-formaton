@@ -53,15 +53,14 @@ export async function login(email: string, password: string) {
 
 export async function logout() {
   await signOut();
-  localStorage.removeItem('formaton_access_token');
   localStorage.removeItem('formaton_id_token');
 }
 
-export async function getAccessToken(): Promise<string | null> {
+export async function getIdToken(): Promise<string | null> {
   try {
     const session = await fetchAuthSession();
-    const token = session.tokens?.accessToken?.toString();
-    if (token) localStorage.setItem('formaton_access_token', token);
+    const token = session.tokens?.idToken?.toString();
+    if (token) localStorage.setItem('formaton_id_token', token);
     return token ?? null;
   } catch {
     return null;
