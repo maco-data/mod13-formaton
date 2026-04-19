@@ -73,7 +73,7 @@ new ObservabilityStack(app, `Formaton-Observability-${envName}`, {
 });
 
 new BudgetStack(app, `Formaton-Budget-${envName}`, {
-  env: { account: env.account, region: 'us-east-1' },
+  env,
   config,
   tags,
 });
