@@ -98,11 +98,14 @@ jobs:
           CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
 
-      - name: Download frontend dist
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-dist
-          path: frontend/dist/
+      - name: Build frontend with deployed dev outputs
+        run: |
+          export VITE_API_URL=/api
+          export VITE_USER_POOL_ID=$(jq -r '."Formaton-Auth-dev".UserPoolId' cdk-outputs-dev.json)
+          export VITE_USER_POOL_CLIENT_ID=$(jq -r '."Formaton-Auth-dev".UserPoolClientId' cdk-outputs-dev.json)
+          export VITE_AWS_REGION=${{ env.AWS_REGION }}
+          export VITE_ENV=dev
+          npm --workspace=frontend run build
 
       - name: Deploy frontend to S3 + invalidate CloudFront
         run: |
@@ -162,6 +165,15 @@ jobs:
         env:
           CDK_DEFAULT_ACCOUNT: ${{ secrets.AWS_ACCOUNT_ID }}
           CDK_DEFAULT_REGION: ${{ env.AWS_REGION }}
+
+      - name: Build frontend with deployed prod outputs
+        run: |
+          export VITE_API_URL=/api
+          export VITE_USER_POOL_ID=$(jq -r '."Formaton-Auth-prod".UserPoolId' cdk-outputs-prod.json)
+          export VITE_USER_POOL_CLIENT_ID=$(jq -r '."Formaton-Auth-prod".UserPoolClientId' cdk-outputs-prod.json)
+          export VITE_AWS_REGION=${{ env.AWS_REGION }}
+          export VITE_ENV=prod
+          npm --workspace=frontend run build
 
       - name: Deploy frontend to S3 + invalidate CloudFront (prod)
         run: |
