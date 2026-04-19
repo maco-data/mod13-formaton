@@ -56,13 +56,18 @@ const frontStack = new FrontStack(app, `Formaton-Front-${envName}`, {
   userPoolClientId: authStack.userPoolClientId,
 });
 
-new EventTargetsStack(app, `Formaton-EventTargets-${envName}`, {
+eventsStack.addDependency(apiStack);
+
+const eventTargetsStack = new EventTargetsStack(app, `Formaton-EventTargets-${envName}`, {
   env,
   config,
   tags,
   sendConfirmationTarget: apiStack.sendConfirmationTarget,
   sendCancellationTarget: apiStack.sendCancellationTarget,
 });
+
+eventTargetsStack.addDependency(eventsStack);
+eventTargetsStack.addDependency(apiStack);
 
 new ObservabilityStack(app, `Formaton-Observability-${envName}`, {
   env, config, tags,
