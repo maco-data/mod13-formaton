@@ -36,8 +36,6 @@ export default function Modal({ isOpen, onClose, onSubmit, initialValues, title 
   });
   const [form, setForm] = useState(buildForm);
 
-  if (!isOpen) return null;
-
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
 
@@ -48,6 +46,8 @@ export default function Modal({ isOpen, onClose, onSubmit, initialValues, title 
   useEffect(() => {
     setForm(buildForm());
   }, [initialValues]);
+
+  if (!isOpen) return null;
 
   const toIsoString = (value: string) => {
     const date = new Date(value);

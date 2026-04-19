@@ -66,8 +66,10 @@ function getStatusTone(status: SelectedCert['status']) {
 
 export default function Certifications() {
   const { showToast } = useToast();
-  const { isAdmin, user } = useAuth();
-  const { certs, loading, error, reload, verify } = useCerts(isAdmin ? undefined : user?.sub);
+  const { isAdmin, user, loading: authLoading, isAuthenticated } = useAuth();
+  const { certs, loading, error, reload, verify } = useCerts(isAdmin ? undefined : user?.sub, {
+    enabled: !authLoading && isAuthenticated,
+  });
   const [selectedCert, setSelectedCert] = useState<SelectedCert | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [participantMap, setParticipantMap] = useState<Record<string, Participant>>({});

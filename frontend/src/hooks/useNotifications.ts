@@ -4,9 +4,11 @@ import { useCourses } from './useCourses';
 import { useCerts } from './useCerts';
 
 export function useNotifications() {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading: authLoading, isAuthenticated } = useAuth();
   const { courses } = useCourses();
-  const { certs } = useCerts(isAdmin ? undefined : user?.sub);
+  const { certs } = useCerts(isAdmin ? undefined : user?.sub, {
+    enabled: !authLoading && isAuthenticated,
+  });
 
   return useMemo(() => {
     const now = Date.now();

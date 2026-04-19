@@ -7,10 +7,19 @@ interface State {
   error: string | null;
 }
 
-export function useCerts(userId?: string) {
-  const [state, setState] = useState<State>({ items: [], loading: true, error: null });
+interface UseCertsOptions {
+  enabled?: boolean;
+}
+
+export function useCerts(userId?: string, options: UseCertsOptions = {}) {
+  const enabled = options.enabled ?? true;
+  const [state, setState] = useState<State>({ items: [], loading: enabled, error: null });
 
   const load = useCallback(async () => {
+    if (!enabled) {
+      setState({ items: [], loading: false, error: null });
+      return;
+    }
     setState(s => ({ ...s, loading: true, error: null }));
     try {
       const res = await certsService.list(userId);
@@ -18,7 +27,7 @@ export function useCerts(userId?: string) {
     } catch (err) {
       setState(s => ({ ...s, loading: false, error: (err as Error).message }));
     }
-  }, [userId]);
+  }, [enabled, userId]);
 
   useEffect(() => { load(); }, [load]);
 

@@ -47,10 +47,12 @@ function weekdayIndex(value: string) {
 export default function Dashboard() {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { isAdmin, user } = useAuth();
+  const { isAdmin, user, loading: authLoading, isAuthenticated } = useAuth();
   const { courses, loading: loadingCourses, error: errorCourses } = useCourses();
-  const { participants, loading: loadingParticipants, error: errorParticipants } = useParticipants({ enabled: isAdmin });
-  const { certs, loading: loadingCerts, error: errorCerts } = useCerts(isAdmin ? undefined : user?.sub);
+  const { participants, loading: loadingParticipants, error: errorParticipants } = useParticipants({ enabled: isAdmin && !authLoading });
+  const { certs, loading: loadingCerts, error: errorCerts } = useCerts(isAdmin ? undefined : user?.sub, {
+    enabled: !authLoading && isAuthenticated,
+  });
 
   const now = new Date();
   const activeCourses = courses.filter((course) => ['scheduled', 'in_progress'].includes(course.status));

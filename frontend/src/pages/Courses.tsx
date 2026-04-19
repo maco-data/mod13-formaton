@@ -48,7 +48,7 @@ export default function Courses() {
   const navigate = useNavigate();
   const { showToast }             = useToast();
   const { user, isAdmin }         = useAuth();
-  const { issue: issueCert }      = useCerts();
+  const { issue: issueCert }      = useCerts(undefined, { enabled: false });
   const { courses, loading, error, create, update, remove, reload } = useCourses(
     filter === 'all' ? undefined : { status: filter }
   );

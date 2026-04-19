@@ -2,6 +2,7 @@ import { useToast } from '../store/ui.store';
 import { useCourses } from '../hooks/useCourses';
 import { useParticipants } from '../hooks/useParticipants';
 import { useCerts } from '../hooks/useCerts';
+import { useAuth } from '../hooks/useAuth';
 import styles from './Reports.module.css';
 
 const REPORT_CARDS = [
@@ -24,9 +25,10 @@ function weekBucket(value: string) {
 
 export default function Reports() {
   const { showToast } = useToast();
+  const { isAdmin, loading: authLoading } = useAuth();
   const { courses, loading: loadingCourses, error: errorCourses } = useCourses();
-  const { participants, loading: loadingParticipants, error: errorParticipants } = useParticipants();
-  const { certs, loading: loadingCerts, error: errorCerts } = useCerts();
+  const { participants, loading: loadingParticipants, error: errorParticipants } = useParticipants({ enabled: isAdmin && !authLoading });
+  const { certs, loading: loadingCerts, error: errorCerts } = useCerts(undefined, { enabled: isAdmin && !authLoading });
 
   const enrolled = Array.from({ length: 8 }, () => 0);
   const completed = Array.from({ length: 8 }, () => 0);
