@@ -6,6 +6,9 @@ import styles from './Sidebar.module.css';
 export default function Sidebar() {
   const { user, logout, isAdmin } = useAuth();
   const notificationCount = useNotifications();
+  const safeGivenName = user?.givenName?.trim() || '';
+  const safeFamilyName = user?.familyName?.trim() || '';
+  const safeFullName = `${safeGivenName} ${safeFamilyName}`.trim() || user?.email || 'Usuario';
 
   const nav = isAdmin ? [
     {
@@ -38,7 +41,7 @@ export default function Sidebar() {
   ];
 
   const initials = user
-    ? `${user.givenName[0] ?? ''}${user.familyName[0] ?? ''}`.toUpperCase()
+    ? `${safeGivenName[0] ?? ''}${safeFamilyName[0] ?? ''}`.toUpperCase() || (user.email?.[0] ?? 'U').toUpperCase()
     : 'U';
 
   return (
@@ -84,7 +87,7 @@ export default function Sidebar() {
           <div className={styles.avatar}>{initials}</div>
           <div className={styles.userInfo}>
             <div className={styles.userName}>
-              {user ? `${user.givenName} ${user.familyName}` : 'Usuario'}
+              {safeFullName}
             </div>
             <div className={styles.userRole}>
               {user?.role === 'admin' ? 'Administrador/a RR.HH.' :

@@ -73,13 +73,18 @@ export async function getCurrentFormatonUser(): Promise<FormatonUser | null> {
     const attrs = await fetchUserAttributes();
     const session = await fetchAuthSession();
     const groups: string[] = (session.tokens?.accessToken?.payload['cognito:groups'] as string[]) ?? [];
+    const idPayload = session.tokens?.idToken?.payload;
+    const email = attrs.email ?? String(idPayload?.email ?? '');
+    const givenName = attrs.given_name ?? String(idPayload?.given_name ?? '');
+    const familyName = attrs.family_name ?? String(idPayload?.family_name ?? '');
+    const sub = attrs.sub ?? String(idPayload?.sub ?? '');
 
     return {
-      sub: attrs.sub!,
-      email: attrs.email!,
-      givenName: attrs.given_name ?? '',
-      familyName: attrs.family_name ?? '',
-      department: attrs['custom:department'],
+      sub,
+      email,
+      givenName,
+      familyName,
+      department: attrs['custom:department'] ?? (String(idPayload?.['custom:department'] ?? '') || undefined),
       role: (groups.includes('admin') ? 'admin' : groups.includes('manager') ? 'manager' : 'student'),
       groups,
     };

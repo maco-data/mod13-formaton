@@ -66,6 +66,11 @@ export default function Participants() {
     () => selfParticipant ?? participants.find((participant) => participant.id === user?.sub || participant.email === user?.email) ?? null,
     [participants, selfParticipant, user?.email, user?.sub]
   );
+  const ownParticipantName = ownParticipant
+    ? ownParticipant.fullName || `${ownParticipant.givenName ?? ''} ${ownParticipant.familyName ?? ''}`.trim() || ownParticipant.email
+    : user
+      ? `${user.givenName ?? ''} ${user.familyName ?? ''}`.trim() || user.email
+      : 'Usuario';
 
   useEffect(() => {
     if (isAdmin || !user?.sub) return;
@@ -312,7 +317,7 @@ export default function Participants() {
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
                   <label>Nombre completo</label>
-                  <div className={styles.detailBox}>{ownParticipant.fullName || `${ownParticipant.givenName} ${ownParticipant.familyName}`.trim()}</div>
+                  <div className={styles.detailBox}>{ownParticipantName}</div>
                 </div>
                 <div className={styles.formGroup}>
                   <label>Rol</label>
