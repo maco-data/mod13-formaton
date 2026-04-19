@@ -1,0 +1,27 @@
+{
+  "name": "formaton-infra",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "synth": "cdk synth",
+    "verify:blue-green:dev": "node scripts/verify-blue-green.js dev",
+    "verify:blue-green:prod": "node scripts/verify-blue-green.js prod",
+    "deploy:dev": "cdk deploy --all --context env=dev --require-approval never",
+    "deploy:prod": "cdk deploy --all --context env=prod --require-approval broadening",
+    "diff:dev": "cdk diff --all --context env=dev",
+    "diff:prod": "cdk diff --all --context env=prod",
+    "destroy:dev": "cdk destroy --all --context env=dev --force"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.170.0",
+    "typescript": "~5.7.0",
+    "ts-node": "^10.9.1",
+    "source-map-support": "^0.5.21"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.170.0",
+    "constructs": "^10.0.0"
+  }
+}

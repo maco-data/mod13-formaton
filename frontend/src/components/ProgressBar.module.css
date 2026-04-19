@@ -1,0 +1,21 @@
+.wrap {
+  background: var(--border-light);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+  flex: 1;
+}
+.fill {
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.label {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-left: 6px;
+}

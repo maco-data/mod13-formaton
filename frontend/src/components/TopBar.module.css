@@ -1,0 +1,53 @@
+.demoBanner {
+  background: #FEF3C7;
+  border-bottom: 1px solid #FCD34D;
+  padding: 8px 28px;
+  font-size: 12.5px;
+  color: #78350F;
+  flex-shrink: 0;
+}
+.demoBanner code {
+  background: rgba(0,0,0,0.08);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11.5px;
+}
+.topbar {
+  background: white;
+  height: 60px;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.title {
+  font-size: 17px; font-weight: 700;
+  color: var(--text-primary); flex: 1;
+}
+.search {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 24px; padding: 7px 14px; width: 220px;
+}
+.search svg { width: 14px; height: 14px; color: var(--text-muted); flex-shrink: 0; }
+.search input {
+  border: none; background: transparent; font-size: 13px;
+  color: var(--text-primary); outline: none; width: 100%;
+}
+.iconBtn {
+  width: 36px; height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: white; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; position: relative; color: var(--text-secondary);
+}
+.iconBtn:hover { background: var(--bg); border-color: var(--primary); color: var(--primary); }
+.notifDot {
+  position: absolute; top: 6px; right: 6px;
+  width: 7px; height: 7px;
+  background: var(--danger); border-radius: 50%;
+  border: 1.5px solid white;
+}

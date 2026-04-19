@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  color-scheme: light;
+  --bg: #D4D4D4;
+  --surface: #EFEFEF;
+  --text: #1B1B1B;
+  --muted: #4B4B4B;
+  --accent: #C91F3C;
+  --accent-2: #2C6FBB;
+  --border: #BCBCBC;
+  --shadow: 0 10px 30px rgba(27, 27, 27, 0.12);
+  --primary: var(--accent);
+  --primary-light: rgba(201, 31, 60, 0.12);
+  --primary-dark: #A51831;
+  --accent-light: rgba(44, 111, 187, 0.14);
+  --success: var(--accent-2);
+  --success-light: rgba(44, 111, 187, 0.14);
+  --warning: #8F6D2F;
+  --warning-light: rgba(143, 109, 47, 0.16);
+  --danger: var(--accent);
+  --danger-light: rgba(201, 31, 60, 0.14);
+  --sidebar-bg: #1B1B1B;
+  --card: var(--surface);
+  --text-primary: var(--text);
+  --text-secondary: var(--muted);
+  --text-muted: #6A6A6A;
+  --border-light: #D9D9D9;
+  --font: 'Plus Jakarta Sans', sans-serif;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1), 0 8px 32px rgba(0,0,0,0.06);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1B1B1B;
+  --surface: #232323;
+  --text: #F2F2F2;
+  --muted: #C7C7C7;
+  --accent: #C91F3C;
+  --accent-2: #2C6FBB;
+  --border: #4B4B4B;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  --primary: var(--accent);
+  --primary-light: rgba(201, 31, 60, 0.18);
+  --primary-dark: #E14661;
+  --accent-light: rgba(44, 111, 187, 0.2);
+  --success: var(--accent-2);
+  --success-light: rgba(44, 111, 187, 0.2);
+  --warning: #D1A95A;
+  --warning-light: rgba(209, 169, 90, 0.18);
+  --danger: var(--accent);
+  --danger-light: rgba(201, 31, 60, 0.2);
+  --sidebar-bg: #111111;
+  --card: var(--surface);
+  --text-primary: var(--text);
+  --text-secondary: var(--muted);
+  --text-muted: #A7A7A7;
+  --border-light: #343434;
+  --shadow-md: 0 14px 34px rgba(0, 0, 0, 0.42);
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { cursor: pointer; font-family: var(--font); }
+input, select, textarea { font-family: var(--font); }
+a { text-decoration: none; color: inherit; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* Loading screen */
+.loading-screen {
+  width: 100vw; height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn 0.2s ease; }

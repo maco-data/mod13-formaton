@@ -1,0 +1,65 @@
+.cal { width: 100%; }
+.full .day { padding: 10px 4px; font-size: 13px; min-height: 52px; align-items: flex-start; }
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.monthLabel { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.nav {
+  width: 24px; height: 24px; border-radius: 6px;
+  border: 1px solid var(--border); background: white;
+  font-size: 13px; color: var(--text-secondary);
+  display: flex; align-items: center; justify-content: center;
+}
+.nav:hover { border-color: var(--primary); color: var(--primary); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.dayLabel {
+  font-size: 9.5px; font-weight: 600;
+  color: var(--text-muted); text-align: center;
+  padding: 4px 0; text-transform: uppercase;
+}
+.day {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex; align-items: center; justify-content: center; flex-direction: column;
+  font-size: 11px; color: var(--text-secondary);
+  border-radius: 6px; cursor: pointer;
+  transition: all 0.1s;
+}
+.day:hover { background: var(--primary-light); color: var(--primary); }
+.day.today {
+  background: var(--primary); color: white; font-weight: 700;
+}
+.day.hasEvent { font-weight: 700; color: var(--primary); }
+.day.today.hasEvent { color: white; }
+.dot {
+  position: absolute; bottom: 3px; left: 50%;
+  transform: translateX(-50%);
+  width: 4px; height: 4px; border-radius: 50%;
+}
+.countBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.day.today .countBadge {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+}
